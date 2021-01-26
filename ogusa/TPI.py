@@ -74,13 +74,23 @@ def get_initial_SS_values(p):
     ------------------------------------------------------------------------
     '''
     # Get an initial distribution of wealth with the initial population
-    # distribution. When small_open=True, the value of K0 is used as a
-    # placeholder for first-period wealth
-    B0 = aggr.get_B(initial_b, p, 'SS', True)
+    # distribution. Because the population distribution in the first period of
+    # the transition path is not equal to the steady-state population
+    # distribution, the aggregate wealth in the first period will be different
+    # from the steady-state wealth distribution unless we adjust it. Our
+    # default specification is to set the initial aggregate wealth equal to
+    # steady-state aggregate wealth by multiplying the initial distribution of
+    # wealth in each age and income group by a constant factor
+    Bss_baseline = ss_baseline_vars['Bss']
+    B0_unadjusted = aggr.get_B(initial_b, p, 'SS', True)
+    init_wealth_factor = Bss_baseline / B0_unadjusted
+    B0 = Bss_baseline
 
-    b_sinit = np.array(list(np.zeros(p.J).reshape(1, p.J)) +
-                       list(initial_b[:-1]))
-    b_splus1init = initial_b
+    b_sinit = (init_wealth_factor *
+               np.array(list(np.zeros(p.J).reshape(1, p.J)) +
+                        list(initial_b[:-1])))
+    b_splus1init = init_wealth_factor * initial_b
+    initial_b = init_wealth_factor * initial_b
 
     # Intial gov't debt must match that in the baseline
     if not p.baseline:
