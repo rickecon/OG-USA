@@ -38,4 +38,4 @@ dependencies:
   - cs2tc
   - pandas-datareader
   - ogcore
-  - taxcalc>=5.2.0
+  - taxcalc==5.1.0
