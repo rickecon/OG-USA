@@ -21,6 +21,36 @@ def _mean_ratio(numerator, denominator):
     return (ratio_data["numerator"] / ratio_data["denominator"]).mean()
 
 
+def _ratio_moment(numerator, denominator, last_value_only=False):
+    """
+    Return either the last ratio or average ratio over common observations.
+    """
+    ratio_data = pd.concat(
+        [numerator.rename("numerator"), denominator.rename("denominator")],
+        axis=1,
+    ).dropna()
+    ratio = ratio_data["numerator"] / ratio_data["denominator"]
+    if last_value_only:
+        return ratio.iloc[-1]
+    return ratio.mean()
+
+
+def _mean_real_rate(nominal_rate, price_index):
+    """
+    Return the average nominal rate less inflation over common observations.
+    """
+    nominal_rate_a = nominal_rate.resample("YE").mean() / 100
+    inflation = price_index.pct_change()
+    rate_data = pd.concat(
+        [
+            nominal_rate_a.rename("nominal_rate"),
+            inflation.rename("inflation"),
+        ],
+        axis=1,
+    ).dropna()
+    return (rate_data["nominal_rate"] - rate_data["inflation"]).mean()
+
+
 def _convert_nominal_to_base_year(nominal, deflator, base_year):
     """
     Convert nominal dollars to dollars in the deflator's base-year prices.
@@ -169,8 +199,8 @@ def get_macro_moments(year=2025):
     macro_moments[r"Savings rate $(B/Y)$"] = _mean_ratio(
         fred_data_q["Gross private savings"], fred_data_q["Nominal GDP"]
     )
-    macro_moments[r"Interest rate $(r)$"] = (
-        fred_data_d["BAA Corp Bond Rates"].mean() / 100
+    macro_moments[r"Interest rate $(r)$"] = _mean_real_rate(
+        fred_data_d["BAA Corp Bond Rates"], fred_data_a["GDP deflator"]
     )
     macro_moments[r"Capital share of output"] = (
         1 - fred_data_a["Labor share"].mean()
@@ -180,7 +210,7 @@ def get_macro_moments(year=2025):
     return macro_moments
 
 
-def get_fiscal_moments(year=2025):
+def get_fiscal_moments(year=2025, last_value_only=True):
     """
     Compute moments that use macro data.
 
@@ -191,6 +221,12 @@ def get_fiscal_moments(year=2025):
         r"Pension outlays to GDP ratio $(Pension/Y)$"
         r"Infrastructure spending to GDP ratio $(I_g/Y)$"
         r"Debt to GDP ratio $(D/Y)$"
+
+    Args:
+        year (int): Inclusive end year for FRED data.
+        last_value_only (bool): If True, use the last common ratio
+            observation. If False, use the mean ratio over all common
+            observations.
     """
 
     # set beginning and end dates for data
@@ -261,11 +297,15 @@ def get_fiscal_moments(year=2025):
     # initialize a dictionary of parameters
     fiscal_moments = {}
 
-    fiscal_moments[r"Revenue to GDP ratio $(T/Y)$"] = _mean_ratio(
-        fred_data_q["Federal tax receipts"], fred_data_q["Nominal GDP"]
+    fiscal_moments[r"Revenue to GDP ratio $(T/Y)$"] = _ratio_moment(
+        fred_data_q["Federal tax receipts"],
+        fred_data_q["Nominal GDP"],
+        last_value_only,
     )
-    fiscal_moments[r"Debt to GDP ratio $(D/Y)$"] = _mean_ratio(
-        fred_data_q["Debt held by public"], fred_data_q["Nominal GDP"]
+    fiscal_moments[r"Debt to GDP ratio $(D/Y)$"] = _ratio_moment(
+        fred_data_q["Debt held by public"],
+        fred_data_q["Nominal GDP"],
+        last_value_only,
     )
     gov_consumption = (
         fred_data_q["Gov expenditures"]
@@ -273,18 +313,26 @@ def get_fiscal_moments(year=2025):
         - fred_data_q["Gov interest payments"]
         - fred_data_q["Gov investment"]
     )
-    fiscal_moments[r"Gov't consumption to GDP ratio $(G/Y)$"] = _mean_ratio(
-        gov_consumption, fred_data_q["Nominal GDP"]
+    fiscal_moments[r"Gov't consumption to GDP ratio $(G/Y)$"] = (
+        _ratio_moment(
+            gov_consumption, fred_data_q["Nominal GDP"], last_value_only
+        )
     )
     fiscal_moments[r"Pension outlays to GDP ratio $(Pension/Y)$"] = (
-        _mean_ratio(
-            fred_data_q["Social Security payments"], fred_data_q["Nominal GDP"]
+        _ratio_moment(
+            fred_data_q["Social Security payments"],
+            fred_data_q["Nominal GDP"],
+            last_value_only,
         )
     )
 
     # find alpha_I
     fiscal_moments[r"Infrastructure spending to GDP ratio $(I_g/Y)$"] = (
-        _mean_ratio(fred_data_q["Gov investment"], fred_data_q["Nominal GDP"])
+        _ratio_moment(
+            fred_data_q["Gov investment"],
+            fred_data_q["Nominal GDP"],
+            last_value_only,
+        )
     )
 
     return fiscal_moments
