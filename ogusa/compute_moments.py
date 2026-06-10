@@ -7,6 +7,7 @@ moments that are used in the calibration of the OG-USA model.
 from fredapi import Fred
 import os
 import pandas as pd
+import numpy as np
 import datetime
 
 
@@ -49,6 +50,52 @@ def _mean_real_rate(nominal_rate, price_index):
         axis=1,
     ).dropna()
     return (rate_data["nominal_rate"] - rate_data["inflation"]).mean()
+
+
+def _weighted_gini(values, weights):
+    """
+    Compute the weighted Gini coefficient.
+    """
+    data = pd.DataFrame({"value": values, "weight": weights})
+    data = data.replace([np.inf, -np.inf], np.nan).dropna()
+    data = data[data["weight"] > 0].copy()
+    if data.empty:
+        raise ValueError("No observations with positive weight.")
+
+    data.sort_values(by="value", ascending=True, inplace=True)
+    weighted_value = data["value"] * data["weight"]
+    total_weighted_value = weighted_value.sum()
+    if np.isclose(total_weighted_value, 0.0):
+        raise ValueError("Weighted sum of values is zero.")
+
+    p = (data["weight"].cumsum() / data["weight"].sum()).values
+    nu = (weighted_value.cumsum() / total_weighted_value).values
+    return float((nu[1:] * p[:-1]).sum() - (nu[:-1] * p[1:]).sum())
+
+
+def _taxcalc_cps_income_ginis(income_year=None):
+    """
+    Compute income Ginis from Tax-Calculator CPS records.
+    """
+    from taxcalc import Calculator, Policy, Records
+
+    calc = Calculator(records=Records.cps_constructor(), policy=Policy())
+    if income_year is not None:
+        calc.advance_to_year(income_year)
+    calc.calc_all()
+
+    weights = calc.array("s006")
+    before_tax_income = calc.array("expanded_income") - calc.array(
+        "benefit_value_total"
+    )
+    after_tax_income = calc.array("aftertax_income")
+
+    return {
+        "Gini coefficient, income": _weighted_gini(
+            before_tax_income, weights
+        ),
+        "Gini coefficient, after-tax income": _weighted_gini(after_tax_income, weights),
+    }
 
 
 def _convert_nominal_to_base_year(nominal, deflator, base_year):
@@ -336,3 +383,99 @@ def get_fiscal_moments(year=2025, last_value_only=True):
     )
 
     return fiscal_moments
+
+
+def get_demographic_moments(p, demographic_data_path=None):
+    """
+    Compute moments that use demographic data.
+
+    Computes the following moments:
+
+        r"Fraction 65+"
+        r"Pop growth rate"
+
+    Args:
+        p (OG-Core Specifications object): model parameters.
+        demographic_data_path (str): path to save downloaded demographic data.
+    """
+    from ogcore import demographics
+
+    pop_objs = demographics.get_pop_objs(
+        p.E,
+        p.S,
+        p.T,
+        0,
+        99,
+        initial_data_year=p.start_year - 1,
+        final_data_year=p.start_year,
+        GraphDiag=False,
+        download_path=demographic_data_path,
+    )
+
+    ages = np.arange(p.E, p.E + p.S)
+    omega = pop_objs["omega"][0, :]
+
+    demographic_moments = {}
+    demographic_moments[r"Fraction 65+"] = float(omega[ages >= 65].sum())
+    demographic_moments[r"Pop growth rate"] = float(pop_objs["g_n"][0])
+
+    return demographic_moments
+
+
+def get_inequality_moments(
+    income_source="cps",
+    wealth_source="scf",
+    income_year=None,
+    scf_yrs_list=None,
+    scf_web=True,
+    scf_directory=None,
+):
+    """
+    Compute moments that use income and wealth microdata.
+
+    Computes the following moments:
+
+        r"Before-tax income Gini"
+        r"After-tax income Gini"
+        r"Wealth Gini"
+
+    Args:
+        income_source (str): Source for income data. Currently supports
+            "cps".
+        wealth_source (str): Source for wealth data. Currently supports
+            "scf".
+        income_year (int): Year to use for Tax-Calculator CPS records. If
+            None, use the CPS data start year.
+        scf_yrs_list (list): SCF survey years to pool. If None, use the
+            default years in wealth.get_wealth_data().
+        scf_web (bool): If True, download SCF data from the web.
+        scf_directory (str): Local SCF data directory when scf_web=False.
+    """
+    inequality_moments = {}
+    income_source = income_source.lower()
+    wealth_source = wealth_source.lower()
+
+    if income_source == "cps":
+        inequality_moments.update(_taxcalc_cps_income_ginis(income_year))
+    else:
+        raise ValueError(f"Unsupported income data source: {income_source}")
+
+    if wealth_source == "scf":
+        from ogusa import wealth
+
+        if scf_yrs_list is None:
+            scf = wealth.get_wealth_data(web=scf_web, directory=scf_directory)
+        else:
+            scf = wealth.get_wealth_data(
+                scf_yrs_list=scf_yrs_list,
+                web=scf_web,
+                directory=scf_directory,
+            )
+        wealth_moments = wealth.compute_wealth_moments(
+            scf.copy(), np.array([1.0])
+        )
+        inequality_moments["Gini coefficient, wealth"] = float(wealth_moments[-2])
+    else:
+        raise ValueError(f"Unsupported wealth data source: {wealth_source}")
+
+    return inequality_moments
