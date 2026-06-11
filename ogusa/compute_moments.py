@@ -5,10 +5,20 @@ moments that are used in the calibration of the OG-USA model.
 
 # imports
 from fredapi import Fred
+import io
 import os
 import pandas as pd
 import numpy as np
 import datetime
+import warnings
+import zipfile
+from urllib.request import urlopen
+
+
+NBER_CPS_ASEC_URLS = {
+    2022: "https://data.nber.org/cps_supp_1/raw/2022/march/asecpub22csv.zip",
+    2023: "https://data.nber.org/cps_supp_1/raw/2023/march/asecpub23csv.zip",
+}
 
 
 def _mean_ratio(numerator, denominator):
@@ -73,6 +83,321 @@ def _weighted_gini(values, weights):
     return float((nu[1:] * p[:-1]).sum() - (nu[:-1] * p[1:]).sum())
 
 
+def _weighted_mean_by_age(
+    data, value_col, weight_col, min_age, max_age, age_col="age"
+):
+    """
+    Return weighted mean values by single year of age.
+    """
+    if min_age > max_age:
+        raise ValueError("min_age must be less than or equal to max_age.")
+
+    columns = [age_col, value_col]
+    if weight_col is not None:
+        columns.append(weight_col)
+    age_data = data[columns].copy()
+    age_data[age_col] = pd.to_numeric(age_data[age_col], errors="coerce")
+    age_data[value_col] = pd.to_numeric(
+        age_data[value_col], errors="coerce"
+    )
+    age_data = age_data.replace([np.inf, -np.inf], np.nan).dropna()
+    age_data = age_data[
+        (age_data[age_col] >= min_age) & (age_data[age_col] <= max_age)
+    ].copy()
+    age_data[age_col] = age_data[age_col].astype(int)
+
+    ages = pd.Index(range(min_age, max_age + 1), name="age")
+    if age_data.empty:
+        return pd.Series(index=ages, dtype=float)
+
+    if weight_col is None:
+        return age_data.groupby(age_col)[value_col].mean().reindex(ages)
+
+    age_data[weight_col] = pd.to_numeric(
+        age_data[weight_col], errors="coerce"
+    )
+    age_data = age_data[age_data[weight_col] > 0].copy()
+    if age_data.empty:
+        return pd.Series(index=ages, dtype=float)
+
+    age_data["weighted_value"] = age_data[value_col] * age_data[weight_col]
+    by_age = age_data.groupby(age_col)[["weighted_value", weight_col]].sum()
+    profile = by_age["weighted_value"] / by_age[weight_col]
+
+    return profile.reindex(ages)
+
+
+def _demographic_moments_from_pop_path(E, S, omega, g_n):
+    """
+    Compute demographic moments from a population path and growth path.
+    """
+    ages = np.arange(E, E + S)
+    omega = np.asarray(omega)
+    g_n = np.asarray(g_n)
+    omega0 = omega[0, :]
+
+    demographic_moments = {}
+    demographic_moments[r"Fraction 65+"] = float(omega0[ages >= 65].sum())
+    demographic_moments[r"Pop growth rate"] = float(g_n[0])
+
+    return demographic_moments
+
+
+def _taxcalc_cps_earnings_by_age(min_age, max_age, income_year=None):
+    """
+    Compute individual earnings means by age from Tax-Calculator CPS data.
+    """
+    from taxcalc import Calculator, Policy, Records
+
+    calc = Calculator(records=Records.cps_constructor(), policy=Policy())
+    if income_year is not None:
+        calc.advance_to_year(income_year)
+    calc.calc_all()
+
+    weights = calc.array("s006")
+    cps = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "age": calc.array("age_head"),
+                    "earnings": calc.array("earned_p"),
+                    "weight": weights,
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "age": calc.array("age_spouse"),
+                    "earnings": calc.array("earned_s"),
+                    "weight": weights,
+                }
+            ),
+        ],
+        ignore_index=True,
+    )
+    cps = cps[cps["age"] > 0]
+
+    return _weighted_mean_by_age(
+        cps, "earnings", "weight", min_age, max_age
+    )
+
+
+def _cps_hours_by_age(cps, min_age, max_age):
+    """
+    Compute hours means by age from a CPS dataframe.
+    """
+    if cps is None:
+        raise ValueError("No CPS hours data were provided.")
+    if "age" not in cps or "hours" not in cps:
+        raise ValueError(
+            "CPS hours data must include age and hours columns."
+        )
+
+    weight_col = None
+    for possible_weight_col in ("wtsupp", "s006", "weight", "wgt"):
+        if possible_weight_col in cps:
+            weight_col = possible_weight_col
+            break
+
+    return _weighted_mean_by_age(
+        cps, "hours", weight_col, min_age, max_age
+    )
+
+
+def _read_nber_cps_asec_person_file(year, url=None):
+    """
+    Read CPS ASEC person-level hours fields from an NBER zip file.
+    """
+    if url is None:
+        url = NBER_CPS_ASEC_URLS[year]
+
+    url_or_path = os.fspath(url)
+    if os.path.exists(url_or_path):
+        with open(url_or_path, "rb") as zip_file_on_disk:
+            zip_bytes = zip_file_on_disk.read()
+    else:
+        with urlopen(url_or_path, timeout=60) as response:
+            zip_bytes = response.read()
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zip_file:
+        person_files = [
+            name
+            for name in zip_file.namelist()
+            if name.lower().startswith("pppub")
+            and name.lower().endswith(".csv")
+        ]
+        if len(person_files) != 1:
+            raise ValueError(
+                f"Expected one CPS person file in {url}, found "
+                f"{len(person_files)}."
+            )
+        with zip_file.open(person_files[0]) as person_file:
+            cps = pd.read_csv(
+                person_file,
+                usecols=["A_AGE", "HRSWK", "WKSWORK", "A_FNLWGT"],
+            )
+
+    cps.rename(
+        columns={
+            "A_AGE": "age",
+            "HRSWK": "hours_per_week",
+            "WKSWORK": "weeks_worked",
+            "A_FNLWGT": "weight",
+        },
+        inplace=True,
+    )
+    cps["year"] = year
+
+    return cps
+
+
+def _nber_cps_hours_by_age(
+    min_age,
+    max_age,
+    cps_years=(2023, 2022),
+    cps_urls=None,
+):
+    """
+    Compute annual hours means by age from NBER CPS ASEC files.
+    """
+    cps_data = []
+    for year in cps_years:
+        url = None
+        if cps_urls is not None:
+            url = cps_urls.get(year)
+        cps_data.append(_read_nber_cps_asec_person_file(year, url=url))
+    cps = pd.concat(cps_data, ignore_index=True)
+
+    for col in ["hours_per_week", "weeks_worked"]:
+        cps[col] = pd.to_numeric(cps[col], errors="coerce").fillna(0)
+        cps.loc[cps[col] < 0, col] = 0
+    cps["hours"] = cps["hours_per_week"] * cps["weeks_worked"]
+
+    return _weighted_mean_by_age(
+        cps, "hours", "weight", min_age, max_age
+    )
+
+
+def _default_psid_path():
+    """
+    Return the first packaged PSID lifetime-income file found.
+    """
+    cur_path = os.path.split(os.path.abspath(__file__))[0]
+    candidate_paths = [
+        os.path.join(cur_path, "psid_lifetime_income.csv.gz"),
+        os.path.join(
+            cur_path,
+            "..",
+            "data",
+            "PSID",
+            "psid_lifetime_income_archived.csv",
+        ),
+    ]
+    for path in candidate_paths:
+        if os.path.exists(path):
+            return path
+
+    raise FileNotFoundError(
+        "Could not find a packaged PSID lifetime-income file."
+    )
+
+
+def _read_psid_lifetime_income(columns, psid_path=None):
+    """
+    Read selected columns from the packaged PSID lifetime-income data.
+    """
+    if psid_path is None:
+        psid_path = _default_psid_path()
+
+    psid = pd.read_csv(psid_path, usecols=lambda col: col in columns)
+    missing_columns = sorted(set(columns) - set(psid.columns))
+    if missing_columns:
+        raise ValueError(
+            "PSID data are missing required columns: "
+            + ", ".join(missing_columns)
+        )
+
+    return psid
+
+
+def _psid_person_profile(
+    var, min_age, max_age, psid_path=None, weight_col=None
+):
+    """
+    Compute individual hours or earnings means by age from PSID data.
+    """
+    columns = [
+        "age",
+        "spouse_age",
+        "head_annual_hours",
+        "spouse_annual_hours",
+        "head_labor_inc",
+        "spouse_labor_inc",
+        "head_noncorp_bus_labor_income",
+        "spouse_noncorp_bus_labor_income",
+    ]
+    if weight_col is not None:
+        columns.append(weight_col)
+    psid = _read_psid_lifetime_income(columns, psid_path=psid_path)
+
+    if var == "hours":
+        head_value = psid["head_annual_hours"]
+        spouse_value = psid["spouse_annual_hours"]
+        value_col = "hours"
+    elif var == "earnings":
+        head_value = (
+            psid["head_labor_inc"] + psid["head_noncorp_bus_labor_income"]
+        )
+        spouse_value = (
+            psid["spouse_labor_inc"]
+            + psid["spouse_noncorp_bus_labor_income"]
+        )
+        value_col = "earnings"
+    else:
+        raise ValueError(f"Unsupported PSID person profile variable: {var}")
+
+    head_data = {
+        "age": psid["age"],
+        value_col: head_value,
+    }
+    spouse_data = {
+        "age": psid["spouse_age"],
+        value_col: spouse_value,
+    }
+    if weight_col is not None:
+        head_data[weight_col] = psid[weight_col]
+        spouse_data[weight_col] = psid[weight_col]
+
+    people = pd.concat(
+        [pd.DataFrame(head_data), pd.DataFrame(spouse_data)],
+        ignore_index=True,
+    )
+    people = people[people["age"] > 0]
+
+    return _weighted_mean_by_age(
+        people, value_col, weight_col, min_age, max_age
+    )
+
+
+def _psid_consumption_by_age(
+    min_age, max_age, psid_path=None, consumption_vars=None, weight_col=None
+):
+    """
+    Compute household consumption-expenditure means by head age from PSID.
+    """
+    if consumption_vars is None:
+        consumption_vars = ["food_out_expend", "food_in_expend"]
+    columns = ["age"] + list(consumption_vars)
+    if weight_col is not None:
+        columns.append(weight_col)
+    psid = _read_psid_lifetime_income(columns, psid_path=psid_path)
+
+    psid["consumption"] = psid[list(consumption_vars)].sum(axis=1)
+
+    return _weighted_mean_by_age(
+        psid, "consumption", weight_col, min_age, max_age
+    )
+
+
 def _taxcalc_cps_income_ginis(income_year=None):
     """
     Compute income Ginis from Tax-Calculator CPS records.
@@ -94,7 +419,9 @@ def _taxcalc_cps_income_ginis(income_year=None):
         "Gini coefficient, income": _weighted_gini(
             before_tax_income, weights
         ),
-        "Gini coefficient, after-tax income": _weighted_gini(after_tax_income, weights),
+        "Gini coefficient, after-tax income": _weighted_gini(
+            after_tax_income, weights
+        ),
     }
 
 
@@ -400,26 +727,34 @@ def get_demographic_moments(p, demographic_data_path=None):
     """
     from ogcore import demographics
 
-    pop_objs = demographics.get_pop_objs(
-        p.E,
-        p.S,
-        p.T,
-        0,
-        99,
-        initial_data_year=p.start_year - 1,
-        final_data_year=p.start_year,
-        GraphDiag=False,
-        download_path=demographic_data_path,
-    )
+    try:
+        pop_objs = demographics.get_pop_objs(
+            p.E,
+            p.S,
+            p.T,
+            0,
+            99,
+            initial_data_year=p.start_year - 1,
+            final_data_year=p.start_year,
+            GraphDiag=False,
+            download_path=demographic_data_path,
+        )
+        omega = pop_objs["omega"]
+        g_n = pop_objs["g_n"]
+    except (AssertionError, UnboundLocalError, OSError):
+        if not hasattr(p, "omega") or not hasattr(p, "g_n"):
+            raise
+        warnings.warn(
+            "Unable to build demographic objects with "
+            "ogcore.demographics.get_pop_objs. Using p.omega and p.g_n "
+            "instead.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        omega = p.omega
+        g_n = p.g_n
 
-    ages = np.arange(p.E, p.E + p.S)
-    omega = pop_objs["omega"][0, :]
-
-    demographic_moments = {}
-    demographic_moments[r"Fraction 65+"] = float(omega[ages >= 65].sum())
-    demographic_moments[r"Pop growth rate"] = float(pop_objs["g_n"][0])
-
-    return demographic_moments
+    return _demographic_moments_from_pop_path(p.E, p.S, omega, g_n)
 
 
 def get_inequality_moments(
@@ -474,8 +809,174 @@ def get_inequality_moments(
         wealth_moments = wealth.compute_wealth_moments(
             scf.copy(), np.array([1.0])
         )
-        inequality_moments["Gini coefficient, wealth"] = float(wealth_moments[-2])
+        inequality_moments["Gini coefficient, wealth"] = float(
+            wealth_moments[-2]
+        )
     else:
         raise ValueError(f"Unsupported wealth data source: {wealth_source}")
 
     return inequality_moments
+
+
+def get_age_profile_moments(
+    var,
+    min_age=20,
+    max_age=80,
+    earnings_source="cps",
+    hours_source="cps",
+    wealth_source="scf",
+    consumption_source="psid",
+    cps=None,
+    cps_years=(2023, 2022),
+    cps_urls=None,
+    income_year=None,
+    scf_yrs_list=None,
+    scf_web=True,
+    scf_directory=None,
+    psid_path=None,
+    psid_consumption_vars=None,
+    psid_weight_col=None,
+    psid_fallback=True,
+):
+    """
+    Compute mean age profiles from household survey data.
+
+    Args:
+        var (str): Variable to compute. Must be one of "earnings",
+            "hours", "wealth", or "consumption".
+        min_age (int): Youngest age to include in the returned profile.
+        max_age (int): Oldest age to include in the returned profile.
+        earnings_source (str): Data source for earnings. Currently supports
+            "cps" and "psid".
+        hours_source (str): Data source for hours. Currently supports
+            "cps" and "psid".
+        wealth_source (str): Data source for wealth. Currently supports
+            "scf".
+        consumption_source (str): Data source for consumption expenditures.
+            Currently supports "psid".
+        cps (Pandas DataFrame): CPS hours data with age, hours, and
+            optionally a weight column. If None and hours_source is "cps",
+            download the NBER CPS ASEC person files.
+        cps_years (tuple): CPS ASEC survey years to pool for hours.
+        cps_urls (dict): Optional mapping from CPS ASEC survey year to zip
+            file URL or local path.
+        income_year (int): Year to use for Tax-Calculator CPS earnings.
+            If None, use the CPS data start year.
+        scf_yrs_list (list): SCF survey years to pool. If None, use the
+            default years in wealth.get_wealth_data().
+        scf_web (bool): If True, download SCF data from the web.
+        scf_directory (str): Local SCF data directory when scf_web=False.
+        psid_path (str): Local PSID lifetime-income file path.
+        psid_consumption_vars (list): PSID columns to add for the
+            consumption measure. If None, use food_out_expend and
+            food_in_expend, the expenditure fields currently packaged in
+            the PSID data.
+        psid_weight_col (str): Optional PSID weight column. The default is
+            None because the packaged PSID sample is the SRC sample used as
+            representative in psid_data_setup.py.
+        psid_fallback (bool): If True, use PSID hours when a supplied CPS
+            dataframe is not usable.
+
+    Returns:
+        profile (Pandas Series): Mean value by age, indexed from min_age to
+            max_age.
+    """
+    var = var.lower()
+    if var not in {"earnings", "hours", "wealth", "consumption"}:
+        raise ValueError(
+            'var must be one of "earnings", "hours", "wealth", '
+            'or "consumption".'
+        )
+
+    if var == "earnings":
+        earnings_source = earnings_source.lower()
+        if earnings_source == "cps":
+            return _taxcalc_cps_earnings_by_age(
+                min_age, max_age, income_year=income_year
+            )
+        if earnings_source == "psid":
+            return _psid_person_profile(
+                "earnings",
+                min_age,
+                max_age,
+                psid_path=psid_path,
+                weight_col=psid_weight_col,
+            )
+        raise ValueError(f"Unsupported earnings source: {earnings_source}")
+
+    if var == "hours":
+        hours_source = hours_source.lower()
+        if hours_source == "cps":
+            if cps is not None:
+                try:
+                    return _cps_hours_by_age(cps, min_age, max_age)
+                except ValueError:
+                    if not psid_fallback:
+                        raise
+                    warnings.warn(
+                        "Supplied CPS hours data are not usable. Using "
+                        "PSID hours data instead.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    return _psid_person_profile(
+                        "hours",
+                        min_age,
+                        max_age,
+                        psid_path=psid_path,
+                        weight_col=psid_weight_col,
+                    )
+            return _nber_cps_hours_by_age(
+                min_age,
+                max_age,
+                cps_years=cps_years,
+                cps_urls=cps_urls,
+            )
+        if hours_source == "psid":
+            return _psid_person_profile(
+                "hours",
+                min_age,
+                max_age,
+                psid_path=psid_path,
+                weight_col=psid_weight_col,
+            )
+        raise ValueError(f"Unsupported hours source: {hours_source}")
+
+    if var == "wealth":
+        wealth_source = wealth_source.lower()
+        if wealth_source == "scf":
+            from ogusa import wealth
+
+            if scf_yrs_list is None:
+                scf = wealth.get_wealth_data(
+                    web=scf_web,
+                    directory=scf_directory,
+                    include_age=True,
+                )
+            else:
+                scf = wealth.get_wealth_data(
+                    scf_yrs_list=scf_yrs_list,
+                    web=scf_web,
+                    directory=scf_directory,
+                    include_age=True,
+                )
+            return _weighted_mean_by_age(
+                scf, "networth_infadj", "wgt", min_age, max_age
+            )
+        raise ValueError(f"Unsupported wealth source: {wealth_source}")
+
+    consumption_source = consumption_source.lower()
+    if consumption_source == "psid":
+        return _psid_consumption_by_age(
+            min_age,
+            max_age,
+            psid_path=psid_path,
+            consumption_vars=psid_consumption_vars,
+            weight_col=psid_weight_col,
+        )
+
+    raise ValueError(
+        f"Unsupported consumption source: {consumption_source}. "
+        "CPS and SCF do not contain a broad consumption expenditure "
+        "measure comparable to PSID or CEX consumption data."
+    )

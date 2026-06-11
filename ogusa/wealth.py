@@ -7,7 +7,10 @@ CUR_PATH = os.path.split(os.path.abspath(__file__))[0]
 
 
 def get_wealth_data(
-    scf_yrs_list=[2019, 2016, 2013, 2010, 2007], web=True, directory=None
+    scf_yrs_list=[2019, 2016, 2013, 2010, 2007],
+    web=True,
+    directory=None,
+    include_age=False,
 ):
     """
     Reads wealth data from the 2007, 2010, 2013, 2016, and 2019 Survey of
@@ -20,6 +23,8 @@ def get_wealth_data(
         web (Boolean): =True if function retrieves data from internet
         directory (string or None): local directory location if data are
             stored on local drive, not use internet (web=False)
+        include_age (Boolean): =True if function keeps the respondent age
+            from the SCF summary extract.
 
 
     Returns:
@@ -92,11 +97,14 @@ def get_wealth_data(
 
     # read in raw SCF data to calculate moments
     scf_dict = {}
+    columns = ["networth", "wgt"]
+    if include_age:
+        columns.append("age")
     for filename, year in zip(file_paths, scf_yrs_list):
-        df_yr = pd.read_stata(filename, columns=["networth", "wgt"])
+        df_yr = pd.read_stata(filename, columns=columns)
         # Add inflation adjusted net worth
         cpi = cpi_dict["cpi" + str(year)]
-        df_yr["networth_infadj"] = df_yr["networth"] * cpi
+        df_yr["networth_infadj"] = df_yr["networth"] * (100.0 / cpi)
         scf_dict[str(year)] = df_yr
 
     df_scf = scf_dict[str(scf_yrs_list[0])]
