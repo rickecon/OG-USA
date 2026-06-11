@@ -11,7 +11,10 @@ setuptools.setup(
     description="USA calibration for OG-Core",
     long_description_content_type="text/markdown",
     long_description=longdesc,
-    keywords="USA calibration of large scale overlapping generations model of fiscal policy",
+    keywords=(
+        "USA calibration of large scale overlapping generations model "
+        "of fiscal policy"
+    ),
     url="https://github.com/PSLmodels/OG-USA/",
     download_url="https://github.com/PSLmodels/OG-USA/",
     project_urls={
@@ -22,6 +25,9 @@ setuptools.setup(
         "ogusa": [
             "ogusa_default_parameters.json",
             "psid_lifetime_income.csv.gz",
+            "data/CPS/*.csv",
+            "data/SCF/*.csv",
+            "data/PSID/*",
         ]
     },
     include_packages=True,

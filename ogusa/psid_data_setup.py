@@ -20,7 +20,7 @@ if not os.access(output_dir, os.F_OK):
 
 
 def prep_data(
-    data=os.path.join(CURDIR, "..", "data", "PSID", "psid1968to2015.csv.gz")
+    data=os.path.join(CURDIR, "data", "PSID", "psid1968to2015.csv.gz")
 ):
     """
     This script takes PSID data created from psid_download.R and:
@@ -465,7 +465,7 @@ def prep_data(
     results_df = pd.DataFrame.from_dict(first_stage_model_results)
     results_df.to_csv(
         os.path.join(
-            CURDIR, "..", "data", "PSID", "first_stage_reg_results.pkl"
+            CURDIR, "data", "PSID", "first_stage_reg_results.pkl"
         )
     )
 
@@ -475,7 +475,7 @@ def prep_data(
     panel_li.dropna(axis=0, how="all", inplace=True)
     print(panel_li.keys())
     panel_li.to_csv(
-        os.path.join(CURDIR, "..", "data", "PSID", "psid_lifetime_income.csv")
+        os.path.join(CURDIR, "data", "PSID", "psid_lifetime_income.csv")
     )
 
     return panel_li

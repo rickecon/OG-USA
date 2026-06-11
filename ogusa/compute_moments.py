@@ -19,7 +19,7 @@ NBER_CPS_ASEC_URLS = {
     2023: "https://data.nber.org/cps_supp_1/raw/2023/march/asecpub23csv.zip",
 }
 DATA_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "data")
+    os.path.join(os.path.dirname(__file__), "data")
 )
 CPS_DATA_DIR = os.path.join(DATA_DIR, "CPS")
 
@@ -230,7 +230,8 @@ def _read_nber_cps_asec_person_file(
         if not web:
             raise FileNotFoundError(
                 f"Could not find {local_path}. Run "
-                "data/download_moment_data.py to create local CPS data."
+                "data/download_moment_data.py to create local CPS data "
+                "under ogusa/data/CPS."
             )
         url = NBER_CPS_ASEC_URLS[year]
 
@@ -318,6 +319,18 @@ def _default_psid_path():
     cur_path = os.path.split(os.path.abspath(__file__))[0]
     candidate_paths = [
         os.path.join(cur_path, "psid_lifetime_income.csv.gz"),
+        os.path.join(
+            cur_path,
+            "data",
+            "PSID",
+            "psid_lifetime_income.csv",
+        ),
+        os.path.join(
+            cur_path,
+            "data",
+            "PSID",
+            "psid_lifetime_income_archived.csv",
+        ),
         os.path.join(
             cur_path,
             "..",
@@ -811,7 +824,7 @@ def get_inequality_moments(
         scf_yrs_list (list): SCF survey years to pool. If None, use the
             default years in wealth.get_wealth_data().
         scf_web (bool): If True, download SCF data from the web.
-            Defaults to False and uses local trimmed CSVs in data/SCF.
+            Defaults to False and uses local trimmed CSVs in ogusa/data/SCF.
         scf_directory (str): Local SCF data directory when scf_web=False.
     """
     inequality_moments = {}
@@ -898,7 +911,7 @@ def get_age_profile_moments(
         scf_yrs_list (list): SCF survey years to pool. If None, use the
             default years in wealth.get_wealth_data().
         scf_web (bool): If True, download SCF data from the web.
-            Defaults to False and uses local trimmed CSVs in data/SCF.
+            Defaults to False and uses local trimmed CSVs in ogusa/data/SCF.
         scf_directory (str): Local SCF data directory when scf_web=False.
         psid_path (str): Local PSID lifetime-income file path.
         psid_consumption_vars (list): PSID columns to add for the

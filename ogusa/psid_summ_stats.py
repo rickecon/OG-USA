@@ -6,24 +6,27 @@ from constants import CODE_PATH
 
 # Create directory if output directory does not already exist
 cur_path = os.path.split(os.path.abspath(__file__))[0]
+psid_dir = os.path.join(cur_path, "data", "PSID")
 output_fldr = "csv_output_files"
-output_dir = os.path.join(cur_path, "..", "data", "PSID", output_fldr)
+output_dir = os.path.join(psid_dir, output_fldr)
 if not os.access(output_dir, os.F_OK):
     os.makedirs(output_dir)
 
 # Read in dictionary of regression results
 first_stage_results = pickle.load(
-    open(os.path.join(cur_path, "first_stage_reg_results.pkl"), "rb")
+    open(os.path.join(psid_dir, "first_stage_reg_results.pkl"), "rb")
 )
 
 # Read in PSID data
-df = pd.read_csv("psid_lifetime_income.csv.gz")
+df = pd.read_csv(os.path.join(psid_dir, "psid_lifetime_income.csv"))
 
 # save psid to stata data file
 stata_df = df.copy()
 stata_df["li_group"] = stata_df.li_group.astype(str)
 stata_df["li_decile"] = stata_df.li_decile.astype(str)
-stata_df.to_csv("psid_lifetime_income.csv", index=False)
+stata_df.to_csv(
+    os.path.join(psid_dir, "psid_lifetime_income.csv"), index=False
+)
 
 # Put regression results in a table to be read into excel for formatting
 first_stage_reg = pd.DataFrame.from_dict(first_stage_results)

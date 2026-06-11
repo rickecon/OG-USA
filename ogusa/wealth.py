@@ -4,7 +4,7 @@ import pandas as pd
 from ogcore import utils
 
 CUR_PATH = os.path.split(os.path.abspath(__file__))[0]
-SCF_DATA_DIR = os.path.abspath(os.path.join(CUR_PATH, "..", "data", "SCF"))
+SCF_DATA_DIR = os.path.abspath(os.path.join(CUR_PATH, "data", "SCF"))
 
 
 def get_wealth_data(
@@ -22,7 +22,7 @@ def get_wealth_data(
             largest set of years that will work is
             [2019, 2016, 2013, 2010, 2007]
         web (Boolean): =True if function retrieves data from internet.
-            Defaults to False and uses local trimmed CSVs in data/SCF.
+            Defaults to False and uses local trimmed CSVs in ogusa/data/SCF.
         directory (string or None): local directory location if data are
             stored on local drive, not use internet (web=False)
         include_age (Boolean): =True if function keeps the respondent age
