@@ -261,14 +261,13 @@ def _read_nber_cps_asec_person_file(
         with zip_file.open(person_files[0]) as person_file:
             cps = pd.read_csv(
                 person_file,
-                usecols=["A_AGE", "HRSWK", "WKSWORK", "A_FNLWGT"],
+                usecols=["A_AGE", "HRSWK", "A_FNLWGT"],
             )
 
     cps.rename(
         columns={
             "A_AGE": "age",
             "HRSWK": "hours_per_week",
-            "WKSWORK": "weeks_worked",
             "A_FNLWGT": "weight",
         },
         inplace=True,
@@ -304,7 +303,7 @@ def _nber_cps_hours_by_age(
         )
     cps = pd.concat(cps_data, ignore_index=True)
 
-    for col in ["hours_per_week", "weeks_worked"]:
+    for col in ["hours_per_week"]:
         cps[col] = pd.to_numeric(cps[col], errors="coerce").fillna(0)
         cps.loc[cps[col] < 0, col] = 0
     cps["hours"] = cps["hours_per_week"]
