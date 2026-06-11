@@ -14,7 +14,6 @@ import warnings
 import zipfile
 from urllib.request import Request, urlopen
 
-
 NBER_CPS_ASEC_URLS = {
     2022: "https://data.nber.org/cps_supp_1/raw/2022/march/asecpub22csv.zip",
     2023: "https://data.nber.org/cps_supp_1/raw/2023/march/asecpub23csv.zip",
@@ -101,9 +100,7 @@ def _weighted_mean_by_age(
         columns.append(weight_col)
     age_data = data[columns].copy()
     age_data[age_col] = pd.to_numeric(age_data[age_col], errors="coerce")
-    age_data[value_col] = pd.to_numeric(
-        age_data[value_col], errors="coerce"
-    )
+    age_data[value_col] = pd.to_numeric(age_data[value_col], errors="coerce")
     age_data = age_data.replace([np.inf, -np.inf], np.nan).dropna()
     age_data = age_data[
         (age_data[age_col] >= min_age) & (age_data[age_col] <= max_age)
@@ -117,9 +114,7 @@ def _weighted_mean_by_age(
     if weight_col is None:
         return age_data.groupby(age_col)[value_col].mean().reindex(ages)
 
-    age_data[weight_col] = pd.to_numeric(
-        age_data[weight_col], errors="coerce"
-    )
+    age_data[weight_col] = pd.to_numeric(age_data[weight_col], errors="coerce")
     age_data = age_data[age_data[weight_col] > 0].copy()
     if age_data.empty:
         return pd.Series(index=ages, dtype=float)
@@ -196,9 +191,7 @@ def _taxcalc_cps_earnings_by_age(min_age, max_age, income_year=None):
     )
     cps = cps[cps["age"] > 0]
 
-    return _weighted_mean_by_age(
-        cps, "earnings", "weight", min_age, max_age
-    )
+    return _weighted_mean_by_age(cps, "earnings", "weight", min_age, max_age)
 
 
 def _cps_hours_by_age(cps, min_age, max_age):
@@ -208,9 +201,7 @@ def _cps_hours_by_age(cps, min_age, max_age):
     if cps is None:
         raise ValueError("No CPS hours data were provided.")
     if "age" not in cps or "hours" not in cps:
-        raise ValueError(
-            "CPS hours data must include age and hours columns."
-        )
+        raise ValueError("CPS hours data must include age and hours columns.")
 
     weight_col = None
     for possible_weight_col in ("wtsupp", "s006", "weight", "wgt"):
@@ -218,9 +209,7 @@ def _cps_hours_by_age(cps, min_age, max_age):
             weight_col = possible_weight_col
             break
 
-    return _weighted_mean_by_age(
-        cps, "hours", weight_col, min_age, max_age
-    )
+    return _weighted_mean_by_age(cps, "hours", weight_col, min_age, max_age)
 
 
 def _read_nber_cps_asec_person_file(
@@ -319,9 +308,7 @@ def _nber_cps_hours_by_age(
         cps.loc[cps[col] < 0, col] = 0
     cps["hours"] = cps["hours_per_week"]
 
-    return _weighted_mean_by_age(
-        cps, "hours", "weight", min_age, max_age
-    )
+    return _weighted_mean_by_age(cps, "hours", "weight", min_age, max_age)
 
 
 def _default_psid_path():
@@ -395,8 +382,7 @@ def _psid_person_profile(
             psid["head_labor_inc"] + psid["head_noncorp_bus_labor_income"]
         )
         spouse_value = (
-            psid["spouse_labor_inc"]
-            + psid["spouse_noncorp_bus_labor_income"]
+            psid["spouse_labor_inc"] + psid["spouse_noncorp_bus_labor_income"]
         )
         value_col = "earnings"
     else:
@@ -463,9 +449,7 @@ def _taxcalc_cps_income_ginis(income_year=None):
     after_tax_income = calc.array("aftertax_income")
 
     return {
-        "Gini coefficient, income": _weighted_gini(
-            before_tax_income, weights
-        ),
+        "Gini coefficient, income": _weighted_gini(before_tax_income, weights),
         "Gini coefficient, after-tax income": _weighted_gini(
             after_tax_income, weights
         ),
@@ -587,9 +571,7 @@ def get_macro_moments(year=2025):
         ["BAA Corp Bond Rates", "10 year treasury rate"]
     ]
     fred_data_a_all = (
-        fred_data[
-            ["GDP deflator", "Fixed private investment deflator"]
-        ]
+        fred_data[["GDP deflator", "Fixed private investment deflator"]]
         .resample("YE")
         .mean()
     )
@@ -607,8 +589,8 @@ def get_macro_moments(year=2025):
     )
 
     macro_moments = {}
-    macro_moments[r"Investment rate $(I/K)$"] = (
-        _mean_ratio(fixed_private_investment_2021, capital_stock_billions)
+    macro_moments[r"Investment rate $(I/K)$"] = _mean_ratio(
+        fixed_private_investment_2021, capital_stock_billions
     )
     macro_moments[r"Capital-Output ratio $(K/Y)$"] = _mean_ratio(
         capital_stock_billions, real_gdp_2021
@@ -734,10 +716,8 @@ def get_fiscal_moments(year=2025, last_value_only=True):
         - fred_data_q["Gov interest payments"]
         - fred_data_q["Gov investment"]
     )
-    fiscal_moments[r"Gov't consumption to GDP ratio $(G/Y)$"] = (
-        _ratio_moment(
-            gov_consumption, fred_data_q["Nominal GDP"], last_value_only
-        )
+    fiscal_moments[r"Gov't consumption to GDP ratio $(G/Y)$"] = _ratio_moment(
+        gov_consumption, fred_data_q["Nominal GDP"], last_value_only
     )
     fiscal_moments[r"Pension outlays to GDP ratio $(Pension/Y)$"] = (
         _ratio_moment(
