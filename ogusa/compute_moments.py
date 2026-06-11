@@ -991,9 +991,7 @@ def get_age_profile_moments(
                     cps_directory=cps_directory,
                     cps_web=cps_web,
                 )
-            print("Mean hours befor adjustment:", hours.mean())
             hours = hours / ((24 - 8) * 7)  # scale so fraction of a waking day
-            print("Mean hours after adjustment:", hours.mean())
             return _model_age_profile(hours, min_age, max_age)
         if hours_source == "psid":
             hours = _psid_person_profile(
