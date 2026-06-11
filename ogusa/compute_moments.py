@@ -12,13 +12,17 @@ import numpy as np
 import datetime
 import warnings
 import zipfile
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 NBER_CPS_ASEC_URLS = {
     2022: "https://data.nber.org/cps_supp_1/raw/2022/march/asecpub22csv.zip",
     2023: "https://data.nber.org/cps_supp_1/raw/2023/march/asecpub23csv.zip",
 }
+DATA_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "data")
+)
+CPS_DATA_DIR = os.path.join(DATA_DIR, "CPS")
 
 
 def _mean_ratio(numerator, denominator):
@@ -219,19 +223,37 @@ def _cps_hours_by_age(cps, min_age, max_age):
     )
 
 
-def _read_nber_cps_asec_person_file(year, url=None):
+def _read_nber_cps_asec_person_file(
+    year,
+    url=None,
+    directory=None,
+    web=False,
+):
     """
-    Read CPS ASEC person-level hours fields from an NBER zip file.
+    Read CPS ASEC person-level hours fields from local CSV or NBER zip.
     """
+    if directory is None:
+        directory = CPS_DATA_DIR
     if url is None:
+        local_path = os.path.join(directory, f"cps_asec_hours_{year}.csv")
+        if os.path.exists(local_path):
+            return pd.read_csv(local_path)
+        if not web:
+            raise FileNotFoundError(
+                f"Could not find {local_path}. Run "
+                "data/download_moment_data.py to create local CPS data."
+            )
         url = NBER_CPS_ASEC_URLS[year]
 
     url_or_path = os.fspath(url)
+    if os.path.exists(url_or_path) and url_or_path.endswith(".csv"):
+        return pd.read_csv(url_or_path)
     if os.path.exists(url_or_path):
         with open(url_or_path, "rb") as zip_file_on_disk:
             zip_bytes = zip_file_on_disk.read()
     else:
-        with urlopen(url_or_path, timeout=60) as response:
+        request = Request(url_or_path, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(request, timeout=60) as response:
             zip_bytes = response.read()
 
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zip_file:
@@ -271,6 +293,8 @@ def _nber_cps_hours_by_age(
     max_age,
     cps_years=(2023, 2022),
     cps_urls=None,
+    cps_directory=None,
+    cps_web=False,
 ):
     """
     Compute annual hours means by age from NBER CPS ASEC files.
@@ -280,7 +304,14 @@ def _nber_cps_hours_by_age(
         url = None
         if cps_urls is not None:
             url = cps_urls.get(year)
-        cps_data.append(_read_nber_cps_asec_person_file(year, url=url))
+        cps_data.append(
+            _read_nber_cps_asec_person_file(
+                year,
+                url=url,
+                directory=cps_directory,
+                web=cps_web,
+            )
+        )
     cps = pd.concat(cps_data, ignore_index=True)
 
     for col in ["hours_per_week", "weeks_worked"]:
@@ -778,7 +809,7 @@ def get_inequality_moments(
     wealth_source="scf",
     income_year=None,
     scf_yrs_list=None,
-    scf_web=True,
+    scf_web=False,
     scf_directory=None,
 ):
     """
@@ -800,6 +831,7 @@ def get_inequality_moments(
         scf_yrs_list (list): SCF survey years to pool. If None, use the
             default years in wealth.get_wealth_data().
         scf_web (bool): If True, download SCF data from the web.
+            Defaults to False and uses local trimmed CSVs in data/SCF.
         scf_directory (str): Local SCF data directory when scf_web=False.
     """
     inequality_moments = {}
@@ -845,9 +877,11 @@ def get_age_profile_moments(
     cps=None,
     cps_years=(2023, 2022),
     cps_urls=None,
+    cps_directory=None,
+    cps_web=False,
     income_year=None,
     scf_yrs_list=None,
-    scf_web=True,
+    scf_web=False,
     scf_directory=None,
     psid_path=None,
     psid_consumption_vars=None,
@@ -876,11 +910,15 @@ def get_age_profile_moments(
         cps_years (tuple): CPS ASEC survey years to pool for hours.
         cps_urls (dict): Optional mapping from CPS ASEC survey year to zip
             file URL or local path.
+        cps_directory (str): Local directory with trimmed CPS ASEC CSVs.
+        cps_web (bool): If True, download CPS ASEC zip files when a local
+            CSV is missing.
         income_year (int): Year to use for Tax-Calculator CPS earnings.
             If None, use the CPS data start year.
         scf_yrs_list (list): SCF survey years to pool. If None, use the
             default years in wealth.get_wealth_data().
         scf_web (bool): If True, download SCF data from the web.
+            Defaults to False and uses local trimmed CSVs in data/SCF.
         scf_directory (str): Local SCF data directory when scf_web=False.
         psid_path (str): Local PSID lifetime-income file path.
         psid_consumption_vars (list): PSID columns to add for the
@@ -950,6 +988,8 @@ def get_age_profile_moments(
                     max_age,
                     cps_years=cps_years,
                     cps_urls=cps_urls,
+                    cps_directory=cps_directory,
+                    cps_web=cps_web,
                 )
             print("Mean hours befor adjustment:", hours.mean())
             hours = hours / ((24 - 8) * 7)  # scale so fraction of a waking day
