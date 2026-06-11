@@ -464,9 +464,7 @@ def prep_data(
     # )
     results_df = pd.DataFrame.from_dict(first_stage_model_results)
     results_df.to_csv(
-        os.path.join(
-            CURDIR, "data", "PSID", "first_stage_reg_results.pkl"
-        )
+        os.path.join(CURDIR, "data", "PSID", "first_stage_reg_results.pkl")
     )
 
     # Save dataframe

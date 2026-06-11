@@ -18,9 +18,7 @@ NBER_CPS_ASEC_URLS = {
     2022: "https://data.nber.org/cps_supp_1/raw/2022/march/asecpub22csv.zip",
     2023: "https://data.nber.org/cps_supp_1/raw/2023/march/asecpub23csv.zip",
 }
-DATA_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "data")
-)
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
 CPS_DATA_DIR = os.path.join(DATA_DIR, "CPS")
 
 
