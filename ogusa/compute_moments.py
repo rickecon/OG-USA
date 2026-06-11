@@ -286,7 +286,7 @@ def _nber_cps_hours_by_age(
     cps_web=False,
 ):
     """
-    Compute annual hours means by age from NBER CPS ASEC files.
+    Compute weekly hours means by age from NBER CPS ASEC files.
     """
     cps_data = []
     for year in cps_years:
@@ -981,7 +981,8 @@ def get_age_profile_moments(
                 psid_path=psid_path,
                 weight_col=psid_weight_col,
             )
-            hours = hours / ((24 - 8) * 7)  # scale so fraction of a waking day
+            hours = hours / ((24 - 8) * 7 * 50)  # scale so fraction of
+            # a waking day, noting that PSID hours are annual hours worked
             return _model_age_profile(hours, min_age, max_age)
 
         raise ValueError(f"Unsupported hours source: {hours_source}")
