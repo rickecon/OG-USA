@@ -127,6 +127,22 @@ def _weighted_mean_by_age(
     return profile.reindex(ages)
 
 
+def _model_age_profile(profile, min_age, max_age):
+    """
+    Return an 80-period model age profile with missing ages as NaN.
+    """
+    model_ages = pd.Index(range(20, 100), name="age")
+    model_profile = pd.Series(np.nan, index=model_ages, dtype=float)
+    valid_ages = [
+        age
+        for age in profile.index
+        if age in model_profile.index and min_age <= age <= max_age
+    ]
+    model_profile.loc[valid_ages] = profile.loc[valid_ages].astype(float)
+
+    return model_profile
+
+
 def _demographic_moments_from_pop_path(E, S, omega, g_n):
     """
     Compute demographic moments from a population path and growth path.
@@ -270,7 +286,7 @@ def _nber_cps_hours_by_age(
     for col in ["hours_per_week", "weeks_worked"]:
         cps[col] = pd.to_numeric(cps[col], errors="coerce").fillna(0)
         cps.loc[cps[col] < 0, col] = 0
-    cps["hours"] = cps["hours_per_week"] * cps["weeks_worked"]
+    cps["hours"] = cps["hours_per_week"]
 
     return _weighted_mean_by_age(
         cps, "hours", "weight", min_age, max_age
@@ -878,8 +894,8 @@ def get_age_profile_moments(
             dataframe is not usable.
 
     Returns:
-        profile (Pandas Series): Mean value by age, indexed from min_age to
-            max_age.
+        profile (Pandas Series): Mean value by model age, indexed from age
+            20 through 99. Ages outside min_age and max_age are NaN.
     """
     var = var.lower()
     if var not in {"earnings", "hours", "wealth", "consumption"}:
@@ -891,17 +907,19 @@ def get_age_profile_moments(
     if var == "earnings":
         earnings_source = earnings_source.lower()
         if earnings_source == "cps":
-            return _taxcalc_cps_earnings_by_age(
+            earnings = _taxcalc_cps_earnings_by_age(
                 min_age, max_age, income_year=income_year
             )
+            return _model_age_profile(earnings, min_age, max_age)
         if earnings_source == "psid":
-            return _psid_person_profile(
+            earnings = _psid_person_profile(
                 "earnings",
                 min_age,
                 max_age,
                 psid_path=psid_path,
                 weight_col=psid_weight_col,
             )
+            return _model_age_profile(earnings, min_age, max_age)
         raise ValueError(f"Unsupported earnings source: {earnings_source}")
 
     if var == "hours":
@@ -909,7 +927,7 @@ def get_age_profile_moments(
         if hours_source == "cps":
             if cps is not None:
                 try:
-                    return _cps_hours_by_age(cps, min_age, max_age)
+                    hours = _cps_hours_by_age(cps, min_age, max_age)
                 except ValueError:
                     if not psid_fallback:
                         raise
@@ -919,27 +937,35 @@ def get_age_profile_moments(
                         RuntimeWarning,
                         stacklevel=2,
                     )
-                    return _psid_person_profile(
+                    hours = _psid_person_profile(
                         "hours",
                         min_age,
                         max_age,
                         psid_path=psid_path,
                         weight_col=psid_weight_col,
                     )
-            return _nber_cps_hours_by_age(
-                min_age,
-                max_age,
-                cps_years=cps_years,
-                cps_urls=cps_urls,
-            )
+            else:
+                hours = _nber_cps_hours_by_age(
+                    min_age,
+                    max_age,
+                    cps_years=cps_years,
+                    cps_urls=cps_urls,
+                )
+            print("Mean hours befor adjustment:", hours.mean())
+            hours = hours / ((24 - 8) * 7)  # scale so fraction of a waking day
+            print("Mean hours after adjustment:", hours.mean())
+            return _model_age_profile(hours, min_age, max_age)
         if hours_source == "psid":
-            return _psid_person_profile(
+            hours = _psid_person_profile(
                 "hours",
                 min_age,
                 max_age,
                 psid_path=psid_path,
                 weight_col=psid_weight_col,
             )
+            hours = hours / ((24 - 8) * 7)  # scale so fraction of a waking day
+            return _model_age_profile(hours, min_age, max_age)
+
         raise ValueError(f"Unsupported hours source: {hours_source}")
 
     if var == "wealth":
@@ -960,20 +986,22 @@ def get_age_profile_moments(
                     directory=scf_directory,
                     include_age=True,
                 )
-            return _weighted_mean_by_age(
+            wealth_profile = _weighted_mean_by_age(
                 scf, "networth_infadj", "wgt", min_age, max_age
             )
+            return _model_age_profile(wealth_profile, min_age, max_age)
         raise ValueError(f"Unsupported wealth source: {wealth_source}")
 
     consumption_source = consumption_source.lower()
     if consumption_source == "psid":
-        return _psid_consumption_by_age(
+        consumption = _psid_consumption_by_age(
             min_age,
             max_age,
             psid_path=psid_path,
             consumption_vars=psid_consumption_vars,
             weight_col=psid_weight_col,
         )
+        return _model_age_profile(consumption, min_age, max_age)
 
     raise ValueError(
         f"Unsupported consumption source: {consumption_source}. "
