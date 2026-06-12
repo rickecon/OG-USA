@@ -145,9 +145,7 @@ def _arctan_fit_params(
     best_x = None
     best_error_norm = np.inf
     solution = opt.root(arc_error, init_guesses, args=params, method="lm")
-    best_x, best_error_norm = update_best(
-        solution, best_x, best_error_norm
-    )
+    best_x, best_error_norm = update_best(solution, best_x, best_error_norm)
     if best_error_norm <= retry_tol:
         return best_x
 

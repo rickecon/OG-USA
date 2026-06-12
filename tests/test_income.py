@@ -76,9 +76,7 @@ def test_arctan_fit():
         first_point, coef1, coef2, coef3, abil_deprec, init_guesses
     )
     params = (first_point, coef1, coef2, coef3, abil_deprec)
-    expected_vals = income.arctan_func(
-        np.linspace(81, 100, 20), *fit_params
-    )
+    expected_vals = income.arctan_func(np.linspace(81, 100, 20), *fit_params)
 
     assert test_vals.shape == (20,)
     assert np.allclose(income.arc_error(fit_params, params), 0.0, atol=1e-6)
