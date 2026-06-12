@@ -58,6 +58,7 @@ dev = [
     "pytest-cov",
     "pytest-xdist",
     "ruff",
+    "linecheck",
 ]
 docs = [
     "ipykernel",

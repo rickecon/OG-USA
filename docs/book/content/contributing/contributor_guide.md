@@ -137,8 +137,9 @@ situations, in which case other contributors are here to help.
     ```
    Note that running this full suite of tests may take close to 24 hours
    (depending on your hardware). To run the small set of tests that run
-   on each pull request, use `uv run pytest -m "not needs_puf and not local
-   and not regression"`. If the tests do not pass, try to fix the issue by
+   on each pull request, use
+   `uv run pytest -m "not needs_puf and not local and not regression"`.
+   If the tests do not pass, try to fix the issue by
    using the information provided by the error message. If this isn't
    possible or doesn't work, the core maintainers are here to help via a
    [GitHub Issue](https://github.com/PSLmodels/OG-USA/issues).

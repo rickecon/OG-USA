@@ -1,6 +1,6 @@
 # GNU Makefile that documents and automates common development operations
 #              using the GNU make tool (version >= 3.81)
-# Development is typically conducted on Linux or Max OS (with the Xcode
+# Development is typically conducted on Linux or Max OS X (with the Xcode
 #              command-line tools installed), so this Makefile is designed
 #              to work in that environment (and not on Windows).
 # USAGE: OG-USA$ make [TARGET]
@@ -24,7 +24,7 @@ help:
 	@echo "pip-package: build sdist + wheel via uv build"
 	@echo "format     : format code with ruff and auto-fix lint issues"
 	@echo "documentation : build documentation using jupyter-book"
-	@echo "new-baseline : : update baseline parameters and save to json file"
+	@echo "new-baseline : update baseline parameters and save to json file"
 
 .PHONY=clean
 clean:
