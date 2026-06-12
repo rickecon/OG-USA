@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.3] - 2026-06-11 15:30:00
+
+### Added
+
+- Module `compute_moments.py` to calculate moments from US data.
+- Data from the CPS and SCF used in `compute_moments.py` are checked into the repo in the `data/` directory.
+
 ## [0.3.2] - 2026-04-03 18:30:00
 
 ### Added
@@ -191,6 +198,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Any earlier versions of OG-USA can be found in the [`OG-Core`](https://github.com/PSLmodels/OG-Core) repository [release history](https://github.com/PSLmodels/OG-Core/releases) from [v.0.6.4](https://github.com/PSLmodels/OG-Core/releases/tag/v0.6.4) (Jul. 20, 2021) or earlier.
 
 
+[0.3.3]: https://github.com/PSLmodels/OG-USA/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/PSLmodels/OG-USA/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/PSLmodels/OG-USA/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PSLmodels/OG-USA/compare/v0.2.4...v0.3.0

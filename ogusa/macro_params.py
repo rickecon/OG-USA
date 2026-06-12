@@ -60,7 +60,7 @@ def get_macro_params():
     # make sure all dollar value data are in billions
     fred_data["Debt held by public"] = fred_data["Debt held by public"] / 1000
 
-    # Separate quartely, monthly, and annual dataseries
+    # Separate quarterly, monthly, and annual data series
     fred_data_q = (
         fred_data[
             [

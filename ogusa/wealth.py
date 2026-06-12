@@ -4,10 +4,14 @@ import pandas as pd
 from ogcore import utils
 
 CUR_PATH = os.path.split(os.path.abspath(__file__))[0]
+SCF_DATA_DIR = os.path.abspath(os.path.join(CUR_PATH, "data", "SCF"))
 
 
 def get_wealth_data(
-    scf_yrs_list=[2019, 2016, 2013, 2010, 2007], web=True, directory=None
+    scf_yrs_list=[2019, 2016, 2013, 2010, 2007],
+    web=False,
+    directory=None,
+    include_age=False,
 ):
     """
     Reads wealth data from the 2007, 2010, 2013, 2016, and 2019 Survey of
@@ -17,9 +21,12 @@ def get_wealth_data(
         scf_yrs_list (list): list of SCF years to import. Currently the
             largest set of years that will work is
             [2019, 2016, 2013, 2010, 2007]
-        web (Boolean): =True if function retrieves data from internet
+        web (Boolean): =True if function retrieves data from internet.
+            Defaults to False and uses local trimmed CSVs in ogusa/data/SCF.
         directory (string or None): local directory location if data are
             stored on local drive, not use internet (web=False)
+        include_age (Boolean): =True if function keeps the respondent age
+            from the SCF summary extract.
 
 
     Returns:
@@ -62,20 +69,19 @@ def get_wealth_data(
 
         file_paths = utils.fetch_files_from_web(file_urls)
 
-    if not web and directory is None:
-        # Thow an error if web=False no source of files is given
-        err_msg = (
-            "SCF DATA ERROR: No local directory was "
-            + "specified as the source for the data."
-        )
-        raise ValueError(err_msg)
-
-    elif not web and directory is not None:
+    elif not web:
         file_paths = []
+        if directory is None:
+            directory = SCF_DATA_DIR
         full_directory = os.path.expanduser(directory)
         filename_list = []
         for yr in scf_yrs_list:
-            filename = "rscfp" + str(yr) + ".dta"
+            csv_filename = "scf_wealth_" + str(yr) + ".csv"
+            dta_filename = "rscfp" + str(yr) + ".dta"
+            if os.path.isfile(os.path.join(full_directory, csv_filename)):
+                filename = csv_filename
+            else:
+                filename = dta_filename
             filename_list.append(filename)
 
         for name in filename_list:
@@ -92,11 +98,20 @@ def get_wealth_data(
 
     # read in raw SCF data to calculate moments
     scf_dict = {}
+    columns = ["networth", "wgt"]
+    if include_age:
+        columns.append("age")
     for filename, year in zip(file_paths, scf_yrs_list):
-        df_yr = pd.read_stata(filename, columns=["networth", "wgt"])
-        # Add inflation adjusted net worth
-        cpi = cpi_dict["cpi" + str(year)]
-        df_yr["networth_infadj"] = df_yr["networth"] * cpi
+        if filename.endswith(".csv"):
+            csv_columns = ["networth", "networth_infadj", "wgt"]
+            if include_age:
+                csv_columns.append("age")
+            df_yr = pd.read_csv(filename, usecols=csv_columns)
+        else:
+            df_yr = pd.read_stata(filename, columns=columns)
+            # Add inflation adjusted net worth
+            cpi = cpi_dict["cpi" + str(year)]
+            df_yr["networth_infadj"] = df_yr["networth"] * (100.0 / cpi)
         scf_dict[str(year)] = df_yr
 
     df_scf = scf_dict[str(scf_yrs_list[0])]

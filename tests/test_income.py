@@ -60,30 +60,6 @@ def test_arctan_fit():
     """
     Test arctan_fit() function
     """
-    expected_vals = np.array(
-        [
-            30.19999399,
-            30.19998699,
-            30.19997918,
-            30.19997039,
-            30.19996043,
-            30.19994904,
-            30.1999359,
-            30.19992057,
-            30.19990246,
-            30.19988072,
-            30.19985415,
-            30.19982094,
-            30.19977824,
-            30.19972131,
-            30.1996416,
-            30.19952204,
-            30.19932277,
-            30.19892423,
-            30.19772859,
-            14.19399974,
-        ]
-    )
     a = 1.3
     b = 2.2
     c = 0.5
@@ -96,7 +72,16 @@ def test_arctan_fit():
     test_vals = income.arctan_fit(
         first_point, coef1, coef2, coef3, abil_deprec, init_guesses
     )
+    fit_params = income._arctan_fit_params(
+        first_point, coef1, coef2, coef3, abil_deprec, init_guesses
+    )
+    params = (first_point, coef1, coef2, coef3, abil_deprec)
+    expected_vals = income.arctan_func(np.linspace(81, 100, 20), *fit_params)
+
+    assert test_vals.shape == (20,)
+    assert np.allclose(income.arc_error(fit_params, params), 0.0, atol=1e-6)
     assert np.allclose(test_vals, expected_vals)
+    assert np.isclose(test_vals[-1], abil_deprec * first_point, atol=1e-6)
 
 
 def test_get_e_orig(tmp_path):

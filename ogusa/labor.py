@@ -49,7 +49,7 @@ def get_labor_data():
 #
 #     5) moments() will take CPS and calc moments
 #     6) VCV will boot strap CPS and call moments() with each
-#        boostrapped sample
+#        bootstrapped sample
 # '''
 #
 #     # Create variables for number of age groups in data (S_labor) and number

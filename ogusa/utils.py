@@ -1,4 +1,5 @@
 import io
+import os
 import pandas as pd
 import numpy as np
 from scipy.stats import gaussian_kde
@@ -20,6 +21,16 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.cbo.gov/",
 }
+CBO_FORECAST_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "data", "CBO_forecasts")
+)
+
+
+def _cbo_forecast_file(filename):
+    """
+    Return the path to a locally saved CBO forecast workbook.
+    """
+    return os.path.join(CBO_FORECAST_DIR, filename)
 
 
 def _fetch_excel(url):
@@ -31,11 +42,25 @@ def _fetch_excel(url):
     return io.BytesIO(response.content)
 
 
+def _excel_source(source):
+    """
+    Return a file-like object for URLs and a local path for saved files.
+    """
+    source = os.fspath(source)
+    if source.startswith(("http://", "https://")):
+        return _fetch_excel(source)
+    return os.path.expanduser(source)
+
+
 def read_cbo_forecast(
-    lt_econ_url="https://www.cbo.gov/system/files/2025-03/57054-2025-03-LTBO-econ.xlsx",
-    lt_budget_url="https://www.cbo.gov/system/files/2025-03/51119-2025-03-LTBO-budget.xlsx",
-    ten_year_budget_url="https://www.cbo.gov/system/files/2025-01/51118-2025-01-Budget-Projections.xlsx",
-    ten_year_macro_url="https://www.cbo.gov/system/files/2025-01/51135-2025-01-Economic-Projections.xlsx",
+    lt_econ_url=_cbo_forecast_file("57054-2025-03-LTBO-econ.xlsx"),
+    lt_budget_url=_cbo_forecast_file("51119-2025-03-LTBO-budget.xlsx"),
+    ten_year_budget_url=_cbo_forecast_file(
+        "51118-2025-01-Budget-Projections.xlsx"
+    ),
+    ten_year_macro_url=_cbo_forecast_file(
+        "51135-2025-01-Economic-Projections.xlsx"
+    ),
     lt_start_year=1995,
     lt_end_year=2055,
     st_start_year=2024,
@@ -68,7 +93,7 @@ def read_cbo_forecast(
     # Econ data in levels
     # Read in data
     df = pd.read_excel(
-        _fetch_excel(lt_econ_url),
+        _excel_source(lt_econ_url),
         sheet_name="3. Econ Vars_Annual Levels",
         skiprows=6,
         nrows=62,
@@ -83,7 +108,7 @@ def read_cbo_forecast(
     # Econ data in rates
     # Read in data
     df = pd.read_excel(
-        _fetch_excel(lt_econ_url),
+        _excel_source(lt_econ_url),
         sheet_name="1. Econ Vars_Annual Rates",
         skiprows=7,
         nrows=39,
@@ -112,7 +137,7 @@ def read_cbo_forecast(
 
     # add debt forecast
     df_fiscal = pd.read_excel(
-        _fetch_excel(lt_budget_url),
+        _excel_source(lt_budget_url),
         sheet_name="1. Summary Ext Baseline",
         skiprows=9,
         nrows=32,
@@ -141,7 +166,7 @@ def read_cbo_forecast(
     # %%
     #  10 year budget
     df = pd.read_excel(
-        _fetch_excel(ten_year_budget_url),
+        _excel_source(ten_year_budget_url),
         sheet_name="Table B-1",
         skiprows=7,
         nrows=7,
@@ -170,7 +195,7 @@ def read_cbo_forecast(
     ]
     # data from other table
     df = pd.read_excel(
-        _fetch_excel(ten_year_budget_url),
+        _excel_source(ten_year_budget_url),
         sheet_name="Table B-4",
         skiprows=8,
         nrows=18,
@@ -196,7 +221,7 @@ def read_cbo_forecast(
     # %%
     # 10 year macro forecast
     df = pd.read_excel(
-        _fetch_excel(ten_year_macro_url),
+        _excel_source(ten_year_macro_url),
         sheet_name="2. Calendar Year",
         skiprows=6,
         nrows=131,
