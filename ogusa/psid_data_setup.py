@@ -248,7 +248,7 @@ def prep_data(
     hhid_to_drop = merged_df_to_list.copy()
     hhid_to_drop["keep"] = False
     psid_df = psid_df.merge(hhid_to_drop, on="hh_id", how="left")
-    psid_df["keep"].fillna(True, inplace=True)
+    psid_df["keep"] = psid_df["keep"].fillna(True).astype(bool)
     psid_df = psid_df[psid_df["keep"]].copy()
     psid_df["in_psid"] = True
     # print number of obs by year
@@ -299,9 +299,8 @@ def prep_data(
     rebalanced_data["diff"] = (
         rebalanced_data["year"] - rebalanced_data["counter"]
     )
-    rebalanced_data["diff"].fillna(
-        0, inplace=True
-    )  # because NaNs if year missing
+    # Use zero because diff is missing when year is missing.
+    rebalanced_data["diff"] = rebalanced_data["diff"].fillna(0)
     max_df = rebalanced_data.groupby("hh_id").agg(["max"])["diff"]
     rebalanced_data = rebalanced_data.join(max_df, how="left", on=["hh_id"])
     rebalanced_data["year"] = (
@@ -315,6 +314,13 @@ def prep_data(
 
     # create additional variables for first stage regressions
     df = rebalanced_data.reset_index()
+    status_cols = [
+        "singlemale",
+        "singlefemale",
+        "marriedmalehead",
+        "marriedfemalehead",
+    ]
+    df[status_cols] = df[status_cols].fillna(False).astype(bool)
     df["age2"] = df["age"] ** 2
     df["age3"] = df["age"] ** 3
     df["age_smale"] = df["age"] * df["singlemale"]
@@ -449,7 +455,7 @@ def prep_data(
         li_df, how="left", on=["hh_id"], lsuffix="_x", rsuffix="_y"
     )
     # Drop from balanced panel those that were not in original panel
-    df_fit2["in_psid"].fillna(False, inplace=True)
+    df_fit2["in_psid"] = df_fit2["in_psid"].fillna(False).astype(bool)
     panel_li = (df_fit2[df_fit2["in_psid"]]).copy()
 
     # Save dictionary of regression results
@@ -468,8 +474,8 @@ def prep_data(
     )
 
     # Save dataframe
-    panel_li.loc["li_group"] = panel_li["li_group"].astype("category")
-    panel_li.loc["li_decile"] = panel_li["li_decile"].astype("category")
+    panel_li["li_group"] = panel_li["li_group"].astype("category")
+    panel_li["li_decile"] = panel_li["li_decile"].astype("category")
     panel_li.dropna(axis=0, how="all", inplace=True)
     print(panel_li.keys())
     panel_li.to_csv(

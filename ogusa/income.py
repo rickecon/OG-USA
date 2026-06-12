@@ -121,6 +121,63 @@ def arc_error(abc_vals, params):
     return error_vec
 
 
+def _arctan_fit_params(
+    first_point, coef1, coef2, coef3, abil_deprec, init_guesses
+):
+    """
+    Solve for the arctan parameters used to extrapolate ability levels.
+    """
+    params = [first_point, coef1, coef2, coef3, abil_deprec]
+    fit_tol = 1e-6
+    retry_tol = max(5.0, 0.25 * np.abs(first_point))
+
+    def update_best(solution, best_x, best_error_norm):
+        if not np.all(np.isfinite(solution.x)):
+            return best_x, best_error_norm
+        error_vec = arc_error(solution.x, params)
+        if not np.all(np.isfinite(error_vec)):
+            return best_x, best_error_norm
+        error_norm = np.linalg.norm(error_vec)
+        if error_norm < best_error_norm:
+            return solution.x, error_norm
+        return best_x, best_error_norm
+
+    best_x = None
+    best_error_norm = np.inf
+    solution = opt.root(arc_error, init_guesses, args=params, method="lm")
+    best_x, best_error_norm = update_best(
+        solution, best_x, best_error_norm
+    )
+    if best_error_norm <= retry_tol:
+        return best_x
+
+    fallback_guesses = [
+        [first_point, 0.06, -5.0],
+        [2.0 * first_point, 0.06, -5.0],
+        [3.0 * first_point, 0.06, -5.0],
+        [first_point, 0.1, -8.0],
+        [2.0 * first_point, 0.1, -8.0],
+        [3.0 * first_point, 0.1, -8.0],
+        [2.0 * first_point, 0.5, -40.0],
+        [3.0 * first_point, 1.0, -80.0],
+    ]
+    for guess in fallback_guesses:
+        for method in ("lm", "hybr"):
+            solution = opt.root(arc_error, guess, args=params, method=method)
+            best_x, best_error_norm = update_best(
+                solution, best_x, best_error_norm
+            )
+            if best_error_norm <= fit_tol:
+                return best_x
+
+    if best_error_norm <= retry_tol:
+        return best_x
+    raise RuntimeError(
+        "Unable to fit arctan ability extrapolation. "
+        f"Best error norm was {best_error_norm}."
+    )
+
+
 def arctan_fit(first_point, coef1, coef2, coef3, abil_deprec, init_guesses):
     """
     This function fits an arctan function to the last 20 years of the
@@ -145,9 +202,9 @@ def arctan_fit(first_point, coef1, coef2, coef3, abil_deprec, init_guesses):
             81 to 100, length 20
 
     """
-    params = [first_point, coef1, coef2, coef3, abil_deprec]
-    solution = opt.root(arc_error, init_guesses, args=params, method="lm")
-    [a, b, c] = solution.x
+    a, b, c = _arctan_fit_params(
+        first_point, coef1, coef2, coef3, abil_deprec, init_guesses
+    )
     old_ages = np.linspace(81, 100, 20)
     abil_last = arctan_func(old_ages, a, b, c)
     return abil_last
