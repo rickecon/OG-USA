@@ -66,6 +66,7 @@ docs = [
     "sphinx>=3.5.4",
     "sphinx-book-theme>=0.1.3",
     "sphinxcontrib-bibtex>=2.0.0",
+    "tabulate",
 ]
 
 [tool.setuptools.packages.find]
