@@ -1,34 +1,38 @@
 # GNU Makefile that documents and automates common development operations
 #              using the GNU make tool (version >= 3.81)
-# Development is typically conducted on Linux or Max OS X (with the Xcode
+# Development is typically conducted on Linux or Max OS (with the Xcode
 #              command-line tools installed), so this Makefile is designed
 #              to work in that environment (and not on Windows).
 # USAGE: OG-USA$ make [TARGET]
+#
+# Requires `uv` (https://docs.astral.sh/uv/) to be installed.
+
 
 .PHONY=help
 help:
 	@echo "USAGE: make [TARGET]"
 	@echo "TARGETS:"
 	@echo "help       : show help message"
-	@echo "clean      : remove .pyc files and local ogusa package"
-	@echo "install    : build and install local package"
-	@echo "test       : run tests with coverage"
-	@echo "pytest     : generate report for and cleanup after"
-	@echo "             pytest -W ignore -m ''"
-	@echo "lint       : check code using ruff"
+	@echo "clean      : remove .pyc files, caches, and the local .venv"
+	@echo "install    : create .venv and install ogusa with dev deps via uv sync"
+	@echo "test       : run tests with coverage (matches CI)"
+	@echo "pytest     : run tests with warnings suppressed"
+	@echo "lint       : check formatting and lint with ruff (no changes)"
 	@echo "coverage   : generate test coverage report"
 	@echo "git-sync   : synchronize local, origin, and upstream Git repos"
 	@echo "git-pr N=n : create local pr-n branch containing upstream PR"
-	@echo "pip-package: build package for distribution"
-	@echo "format     : format code using ruff"
+	@echo "pip-package: build sdist + wheel via uv build"
+	@echo "format     : format code with ruff and auto-fix lint issues"
 	@echo "documentation : build documentation using jupyter-book"
-	@echo "new-baseline : update baseline parameters and save to json file"
-
+	@echo "new-baseline : : update baseline parameters and save to json file"
 
 .PHONY=clean
 clean:
-	@find . -name *pyc -exec rm {} \;
-	@find . -name *cache -maxdepth 1 -exec rm -r {} \;
+	@find . -name '*.pyc' -exec rm {} \;
+	@find . -name '__pycache__' -type d -exec rm -r {} +
+	@find . -name '.pytest_cache' -type d -exec rm -r {} +
+	@find . -name '.ruff_cache' -type d -exec rm -r {} +
+	@rm -rf .venv build dist *.egg-info
 
 install:
 	uv sync --extra dev
@@ -42,7 +46,8 @@ pytest:
 
 .PHONY=lint
 lint:
-	uv run ruff check --force-exclude .
+	uv run ruff format --check .
+	uv run ruff check .
 
 define coverage-cleanup
 rm -f .coverage htmlcov/*
@@ -76,7 +81,9 @@ pip-package:
 	uv build
 
 format:
-	uv run ruff format --force-exclude .
+	uv run ruff format .
+	uv run ruff check . --fix
+	uv run linecheck . --fix
 
 documentation:
 	uv run jupyter-book clean docs/book
