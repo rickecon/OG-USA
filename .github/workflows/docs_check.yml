@@ -1,5 +1,6 @@
 name: Build and Deploy Jupyter Book documentation
 on:
+  pull_request:
   push:
     branches:
       - master
@@ -13,7 +14,7 @@ on:
       - './docs/book/content/api/**.rst'
       - './ogusa/**.py'
 jobs:
-  build-and-deploy:
+  build:
     if: github.repository == 'PSLmodels/OG-USA'
     runs-on: ubuntu-latest
     steps:
