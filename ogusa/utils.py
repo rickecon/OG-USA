@@ -113,7 +113,7 @@ def read_cbo_forecast(
         skiprows=7,
         nrows=39,
     )
-    df[~((pd.isnull(df["Unnamed: 0"])))]
+    df[~(pd.isnull(df["Unnamed: 0"]))]
     df.rename(columns={"Unnamed: 0": "variable"}, inplace=True)
     df["var_name"] = df["variable"].replace(CBO_VAR_NAMES)
     # keep just variables of interest

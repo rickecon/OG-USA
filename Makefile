@@ -15,13 +15,12 @@ help:
 	@echo "test       : run tests with coverage"
 	@echo "pytest     : generate report for and cleanup after"
 	@echo "             pytest -W ignore -m ''"
-	@echo "cstest     : generate coding-style errors using the"
-	@echo "             pycodestyle (nee pep8) tool"
+	@echo "lint       : check code using ruff"
 	@echo "coverage   : generate test coverage report"
 	@echo "git-sync   : synchronize local, origin, and upstream Git repos"
 	@echo "git-pr N=n : create local pr-n branch containing upstream PR"
-	@echo "pip-package: build pip package for distribution"
-	@echo "format     : format code using black"
+	@echo "pip-package: build package for distribution"
+	@echo "format     : format code using ruff"
 	@echo "documentation : build documentation using jupyter-book"
 	@echo "new-baseline : update baseline parameters and save to json file"
 
@@ -30,24 +29,20 @@ help:
 clean:
 	@find . -name *pyc -exec rm {} \;
 	@find . -name *cache -maxdepth 1 -exec rm -r {} \;
-	@conda uninstall ogusa --yes --quiet 2>&1 > /dev/null
 
 install:
-	pip install -e .
+	uv sync --extra dev
 
 test:
-	pytest -m 'not local' --cov=./ --cov-report=xml
+	uv run pytest -m 'not local' --cov=./ --cov-report=xml
 
 .PHONY=pytest
 pytest:
-	@cd ogusa ; pytest -W ignore
+	@uv run pytest -W ignore
 
-ogusa_JSON_FILES := $(shell ls -l ./ogusa/*json | awk '{print $$9}')
-
-.PHONY=cstest
-cstest:
-	-pycodestyle ogusa
-	-pycodestyle --ignore=E501,E121 $(ogusa_JSON_FILES)
+.PHONY=lint
+lint:
+	uv run ruff check --force-exclude .
 
 define coverage-cleanup
 rm -f .coverage htmlcov/*
@@ -60,8 +55,8 @@ OS := $(shell uname -s)
 .PHONY=coverage
 coverage:
 	@$(coverage-cleanup)
-	@coverage run -m pytest -v -m $(COVMARK) > /dev/null
-	@coverage html --ignore-errors
+	@uv run coverage run -m pytest -v -m $(COVMARK) > /dev/null
+	@uv run coverage html --ignore-errors
 ifeq ($(OS), Darwin) # on Mac OS X
 	@open htmlcov/index.html
 else
@@ -78,16 +73,15 @@ git-pr:
 	@./gitpr $(N)
 
 pip-package:
-	pip install wheel
-	python setup.py sdist bdist_wheel
+	uv build
 
 format:
-	black . -l 79
+	uv run ruff format --force-exclude .
 
 documentation:
-	jupyter-book clean docs/book
-	python docs/create_doc_figures.py
-	jupyter-book build docs/book
+	uv run jupyter-book clean docs/book
+	uv run python docs/create_doc_figures.py
+	uv run jupyter-book build docs/book
 
 new-baseline:
-	python ogusa/update_baseline.py
+	uv run python ogusa/update_baseline.py
