@@ -10,8 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Module `compute_moments.py` to calculate moments from US data.
-- Data from the CPS and SCF used in `compute_moments.py` are checked into the repo in the `data/` directory.
+- Module `compute_moments.py` to calculate moments from US data. Data from the CPS and SCF used in `compute_moments.py` are checked into the repo in the `data/` directory. ([PR #1138](https://github.com/PSLmodels/OG-USA/pull/1138))
 
 ## [0.3.2] - 2026-04-03 18:30:00
 

@@ -10,6 +10,7 @@ on:
       - '**.RData'
       - '**.csv'
       - '**.pkl'
+      - '**.pbz2'
       - '**.lock'
   pull_request:
     paths:
@@ -21,6 +22,7 @@ on:
       - '**.RData'
       - '**.csv'
       - '**.pkl'
+      - '**.pbz2'
       - '**.lock'
 jobs:
   build:
@@ -32,25 +34,24 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Install uv using Python ${{ matrix.python-version }}
-        uses: astral-sh/setup-uv@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package and dependencies
         run: uv sync --extra dev
       - name: Test
-        working-directory: ./
         run: |
           uv run python -m pytest -m "not local and not needs_puf and not needs_tmd" --cov=./ --cov-report=xml
         env:
           # Map the GitHub secret to an environment variable for pytest
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && contains(github.repository, 'PSLmodels/OG-USA')
-        uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && contains(github.repository, 'PSLmodels/OG-USA') && github.actor != 'dependabot[bot]'
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.xml
           flags: unittests
