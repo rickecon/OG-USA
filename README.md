@@ -17,6 +17,27 @@ The model is constantly under development, and model components could change sig
 
 ## Using/contributing to OG-USA
 
+There are two primary methods for installing and running OG-USA on your computer locally. The first and simplest method is to download the most recent `ogusa` Python package from the Python Package Index ([PyPI.org](https://pypi.org/project/ogusa/)). The second option is to fork and clone the most recent version of OG-USA from its GitHub repository and install the `ogusa` package with its development dependencies using `uv`. Both methods are detailed below.
+
+### Installing and Running OG-USA from PyPI
+
+* On macOS, first install Xcode Command Line Tools (in Terminal: `xcode-select --install`).
+* Open your terminal and install the [`ogusa`](https://pypi.org/project/ogusa/) package from the Python Package Index by typing `pip install ogusa`.
+* Navigate to a folder `./YourFolderName/` where you want to save scripts to run OG-USA and output from the simulations in those scripts.
+* Copy the python script [`run_og_usa.py`](https://github.com/PSLmodels/OG-USA/blob/master/examples/run_og_usa.py) from the OG-USA GitHub repository into your folder as `./YourFolderName/run_og_usa.py`.
+* Run the model with an example reform from terminal/command prompt by typing `python run_og_usa.py`.
+
+
+### Installing and Running OG-USA from the GitHub repository
+
+* On macOS, first install Xcode Command Line Tools (in Terminal: `xcode-select --install`).
+* Install [`uv`](https://docs.astral.sh/uv/) by following the [installation instructions](https://docs.astral.sh/uv/getting-started/installation/) for your platform (or simply run `pip install uv`).
+* Fork this repository and clone your fork to a directory on your computer.
+* From the terminal, navigate to the cloned directory and run `uv sync --extra dev` to create a local `.venv` and install OG-USA with its development dependencies. `uv` will also download a compatible Python interpreter if you don't already have one.
+* For docs/Jupyter Book work, also run `uv sync --extra dev --extra docs`.
+
+
+### Run an example of the model
 * Install [`uv`](https://docs.astral.sh/uv/) by following the
   [installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
   for your platform, or by running `pip install uv`.
