@@ -11,4 +11,4 @@ from ogusa.transfer_distribution import *
 from ogusa.utils import *
 from ogusa.wealth import *
 
-__version__ = "0.3.3"
+__version__ = "0.4.0"
