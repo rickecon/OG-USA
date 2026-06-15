@@ -20,7 +20,7 @@ if not os.access(output_dir, os.F_OK):
 
 
 def prep_data(
-    data=os.path.join(CURDIR, "data", "PSID", "psid1968to2015.csv.gz")
+    data=os.path.join(CURDIR, "data", "PSID", "psid1968to2015.csv.gz"),
 ):
     """
     This script takes PSID data created from psid_download.R and:

@@ -3,8 +3,8 @@
 | | |
 | --- | --- |
 | Org | [![PSL cataloged](https://img.shields.io/badge/PSL-cataloged-a0a0a0.svg)](https://www.PSLmodels.org) [![OS License: CC0-1.0](https://img.shields.io/badge/OS%20License-CC0%201.0-yellow)](https://github.com/PSLmodels/OG-USA/blob/master/LICENSE) [![Jupyter Book Badge](https://raw.githubusercontent.com/jupyter-book/jupyter-book/next/docs/media/images/badge.svg)](https://github.com/PSLmodels/OG-USA/) |
-| Package | [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3129/) [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-31312/) [![PyPI Latest Release](https://img.shields.io/pypi/v/ogusa.svg)](https://pypi.org/project/ogusa/) [![PyPI Downloads](https://img.shields.io/pypi/dm/ogusa.svg?label=PyPI%20downloads)](https://pypi.org/project/ogusa/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) |
-| Testing | ![example event parameter](https://github.com/PSLmodels/OG-USA/actions/workflows/build_and_test.yml/badge.svg?branch=master) ![example event parameter](https://github.com/PSLmodels/OG-USA/actions/workflows/deploy_docs.yml/badge.svg?branch=master) ![example event parameter](https://github.com/PSLmodels/OG-USA/actions/workflows/check_format.yml/badge.svg?branch=master) [![Codecov](https://codecov.io/gh/PSLmodels/OG-USA/branch/master/graph/badge.svg)](https://codecov.io/gh/PSLmodels/OG-USA) |
+| Package | [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3129/) [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-31312/) [![PyPI Latest Release](https://img.shields.io/pypi/v/ogusa.svg)](https://pypi.org/project/ogusa/) [![PyPI Downloads](https://img.shields.io/pypi/dm/ogusa.svg?label=PyPI%20downloads)](https://pypi.org/project/ogusa/) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) |
+| Testing | ![example event parameter](https://github.com/PSLmodels/OG-USA/actions/workflows/build_and_test.yml/badge.svg?branch=master) ![example event parameter](https://github.com/PSLmodels/OG-USA/actions/workflows/deploy_docs.yml/badge.svg?branch=master) ![example event parameter](https://github.com/PSLmodels/OG-USA/actions/workflows/check_ruff.yml/badge.svg?branch=master) [![Codecov](https://codecov.io/gh/PSLmodels/OG-USA/branch/master/graph/badge.svg)](https://codecov.io/gh/PSLmodels/OG-USA) |
 
 OG-USA is an overlapping-generations (OG) model that allows for dynamic general equilibrium analysis of fiscal policy for the United States. OG-USA is built on the [OG-Core](https://github.com/PSLmodels/OG-Core) framework. The model output includes changes in macroeconomic aggregates (GDP, investment, consumption), wages, interest rates, and the stream of tax revenues over time. Regularly updated documentation of the model theory--its output, and solution method--and the Python API is available at [https://pslmodels.github.io/OG-Core](https://pslmodels.github.io/OG-Core) and documentation of the specific United States calibration of the model is available at [https://pslmodels.github.io/OG-USA](https://pslmodels.github.io/OG-USA).
 
@@ -17,13 +17,36 @@ The model is constantly under development, and model components could change sig
 
 ## Using/contributing to OG-USA
 
-* Install the [Anaconda distribution](https://www.anaconda.com/distribution/) of Python
+There are two primary methods for installing and running OG-USA on your computer locally. The first and simplest method is to download the most recent `ogusa` Python package from the Python Package Index ([PyPI.org](https://pypi.org/project/ogusa/)). The second option is to fork and clone the most recent version of OG-USA from its GitHub repository and install the `ogusa` package with its development dependencies using `uv`. Both methods are detailed below.
+
+### Installing and Running OG-USA from PyPI
+
+* On macOS, first install Xcode Command Line Tools (in Terminal: `xcode-select --install`).
+* Open your terminal and install the [`ogusa`](https://pypi.org/project/ogusa/) package from the Python Package Index by typing `pip install ogusa`.
+* Navigate to a folder `./YourFolderName/` where you want to save scripts to run OG-USA and output from the simulations in those scripts.
+* Copy the python script [`run_og_usa.py`](https://github.com/PSLmodels/OG-USA/blob/master/examples/run_og_usa.py) from the OG-USA GitHub repository into your folder as `./YourFolderName/run_og_usa.py`.
+* Run the model with an example reform from terminal/command prompt by typing `python run_og_usa.py`.
+
+
+### Installing and Running OG-USA from the GitHub repository
+
+* On macOS, first install Xcode Command Line Tools (in Terminal: `xcode-select --install`).
+* Install [`uv`](https://docs.astral.sh/uv/) by following the [installation instructions](https://docs.astral.sh/uv/getting-started/installation/) for your platform (or simply run `pip install uv`).
+* Fork this repository and clone your fork to a directory on your computer.
+* From the terminal, navigate to the cloned directory and run `uv sync --extra dev` to create a local `.venv` and install OG-USA with its development dependencies. `uv` will also download a compatible Python interpreter if you don't already have one.
+* For docs/Jupyter Book work, also run `uv sync --extra dev --extra docs`.
+
+
+### Run an example of the model
+* Install [`uv`](https://docs.astral.sh/uv/) by following the
+  [installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
+  for your platform, or by running `pip install uv`.
 * Clone this repository to a directory on your computer
-* From the terminal (or Conda command prompt), navigate to the directory to which you cloned this repository and run `conda env create -f environment.yml`. The process of creating the `ogusa-dev` conda environment can take more than 20 minutes. The pip install of the `OG-Core` dependency from GitHub takes most of the time.
-* Then, `conda activate ogusa-dev`
-* Then install by `pip install -e .`
+* From the terminal, navigate to the directory to which you cloned this
+  repository and run `uv sync --extra dev`.
 * Navigate to `./examples`
-* Run the model with an example reform from terminal/command prompt by typing `python run_ogusa.py`
+* Run the model with an example reform from terminal/command prompt by
+  typing `uv run python run_ogusa.py`
 * You can adjust the `./examples/run_ogusa.py` by modifying model parameters specified in the dictionary passed to the `p.update_specifications()` calls.
 * Model outputs will be saved in the following files:
     * `./examples/Example/`: This folder will contain all of the output from the `run_ogusa.py` run script.

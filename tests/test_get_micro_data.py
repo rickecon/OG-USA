@@ -1,7 +1,6 @@
 import multiprocessing
 from distributed import Client, LocalCluster
 import pytest
-from pandas.testing import assert_frame_equal
 import numpy as np
 import os
 from pathlib import Path

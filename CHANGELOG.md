@@ -6,12 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0] - 2026-06-15 12:00:00
+
+### Changed
+
+- Migrated the project from conda to uv. Install with `uv sync --extra dev`; `pyproject.toml` is the single source of truth for dependencies and `uv.lock` pins exact versions.
+- CI uses `astral-sh/setup-uv`, and ruff replaces black for formatting and linting (`check_format.yml` -> `check_ruff.yml`).
+- Updated the README, `AGENTS.md`, and the Makefile to the uv workflow.
+
+### Removed
+
+- `setup.py`, `environment.yml`, `pytest.ini`, and `MANIFEST.in` (their settings moved into `pyproject.toml`).
+
+
 ## [0.3.3] - 2026-06-11 15:30:00
 
 ### Added
 
-- Module `compute_moments.py` to calculate moments from US data.
-- Data from the CPS and SCF used in `compute_moments.py` are checked into the repo in the `data/` directory.
+- Module `compute_moments.py` to calculate moments from US data. Data from the CPS and SCF used in `compute_moments.py` are checked into the repo in the `data/` directory. ([PR #1138](https://github.com/PSLmodels/OG-USA/pull/1138))
 
 ## [0.3.2] - 2026-04-03 18:30:00
 
