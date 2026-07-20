@@ -118,6 +118,7 @@ class Calibration:
                 99,
                 initial_data_year=p.start_year - 1,
                 final_data_year=p.start_year,
+                income_percentiles=p.lambdas.flatten(),
                 GraphDiag=False,
                 download_path=demographic_data_path,
             )
@@ -131,14 +132,15 @@ class Calibration:
                 99,
                 initial_data_year=p.start_year - 1,
                 final_data_year=p.start_year,
+                income_percentiles=p.lambdas.flatten(),
                 GraphDiag=False,
             )
 
             # earnings profiles
             self.e = income.get_e_interp(
                 p.S,
-                self.demographic_params["omega_SS"],
-                demog80["omega_SS"],
+                self.demographic_params["omega_SS"].sum(axis=-1),
+                demog80["omega_SS"].sum(axis=-1),
                 p.lambdas,
                 plot_path=output_path,
             )
