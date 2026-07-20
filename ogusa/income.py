@@ -242,7 +242,13 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
     """
     # Get original 80 x 7 ability matrix
     abil_wgts_orig = np.array([0.25, 0.25, 0.2, 0.1, 0.1, 0.09, 0.01])
-    emat_orig = get_e_orig(age_wgts_80, abil_wgts_orig, plot_path)
+    emat_orig = get_e_orig(
+        np.asarray(age_wgts_80).sum(axis=-1)
+        if np.asarray(age_wgts_80).ndim == 2
+        else age_wgts_80,
+        abil_wgts_orig,
+        plot_path,
+    )
     if (
         S == 80
         and np.array_equal(
@@ -278,9 +284,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
         emat_new[:, 9] = emat_orig[:, -1] * 18.74863983 * 4.0
         emat_new_scaled = (
             emat_new
-            / (
-                emat_new * age_wgts.reshape(80, 1) * abil_wgts.reshape(1, 10)
-            ).sum()
+            / (emat_new * age_wgts).sum()
         )
     elif (
         S == 80
@@ -304,9 +308,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
         emat_new[:, 8] = emat_orig[:, -1] * 4.317192601
         emat_new_scaled = (
             emat_new
-            / (
-                emat_new * age_wgts.reshape(80, 1) * abil_wgts.reshape(1, 9)
-            ).sum()
+            / (emat_new * age_wgts).sum()
         )
     else:
         # generate abil_midp vector
@@ -348,9 +350,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
         )
         emat_new_scaled = (
             emat_new
-            / (
-                emat_new * age_wgts.reshape(S, 1) * abil_wgts.reshape(1, J)
-            ).sum()
+            / (emat_new * age_wgts).sum()
         )
 
         if plot_path is not None:

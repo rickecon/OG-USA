@@ -139,8 +139,8 @@ class Calibration:
             # earnings profiles
             self.e = income.get_e_interp(
                 p.S,
-                self.demographic_params["omega_SS"].sum(axis=-1),
-                demog80["omega_SS"].sum(axis=-1),
+                self.demographic_params["omega_SS"],
+                demog80["omega_SS"],
                 p.lambdas,
                 plot_path=output_path,
             )
