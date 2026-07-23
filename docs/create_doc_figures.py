@@ -94,6 +94,7 @@ def main():
         T=320,
         min_age=0,
         max_age=99,
+        income_percentiles=p.lambdas,
         fert_rates=None,
         mort_rates=None,
         infmort_rates=None,
