@@ -243,9 +243,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
     # Get original 80 x 7 ability matrix
     abil_wgts_orig = np.array([0.25, 0.25, 0.2, 0.1, 0.1, 0.09, 0.01])
     emat_orig = get_e_orig(
-        np.asarray(age_wgts_80).sum(axis=-1)
-        if np.asarray(age_wgts_80).ndim == 2
-        else age_wgts_80,
+        age_wgts_80,
         abil_wgts_orig,
         plot_path,
     )
@@ -282,10 +280,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
         emat_new[:, 7] = emat_orig[:, -1] * 0.847252448 * 3.5
         emat_new[:, 8] = emat_orig[:, -1] * 2.713698465 * 3.5
         emat_new[:, 9] = emat_orig[:, -1] * 18.74863983 * 4.0
-        emat_new_scaled = (
-            emat_new
-            / (emat_new * age_wgts).sum()
-        )
+        emat_new_scaled = emat_new / (emat_new * age_wgts).sum()
     elif (
         S == 80
         and np.array_equal(
@@ -306,10 +301,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
         emat_new[:, 6] = emat_orig[:, -1] * 0.458759521
         emat_new[:, 7] = emat_orig[:, -1] * 0.847252448
         emat_new[:, 8] = emat_orig[:, -1] * 4.317192601
-        emat_new_scaled = (
-            emat_new
-            / (emat_new * age_wgts).sum()
-        )
+        emat_new_scaled = emat_new / (emat_new * age_wgts).sum()
     else:
         # generate abil_midp vector
         J = abil_wgts.shape[0]
@@ -348,10 +340,7 @@ def get_e_interp(S, age_wgts, age_wgts_80, abil_wgts, plot_path=None):
             (new_s_mesh, new_j_mesh),
             method="linear",
         )
-        emat_new_scaled = (
-            emat_new
-            / (emat_new * age_wgts).sum()
-        )
+        emat_new_scaled = emat_new / (emat_new * age_wgts).sum()
 
         if plot_path is not None:
             kwargs = {"filesuffix": "_intrp_scaled"}
@@ -500,10 +489,10 @@ def get_e_orig(age_wgts, abil_wgts, plot_path=None):
 
     # 3) Rescale the lifetime earnings path matrix so that the
     #    population weighted average equals 1.
-    e_orig_scaled = (
-        e_orig
-        / (e_orig * age_wgts.reshape(80, 1) * abil_wgts.reshape(1, 7)).sum()
-    )
+    orig_age = age_wgts.sum(axis=-1).reshape(80, 1) * np.array(
+        [0.25, 0.25, 0.2, 0.1, 0.1, 0.09, 0.01]
+    ).reshape(7)
+    e_orig_scaled = e_orig / (e_orig * orig_age).sum()
 
     if plot_path is not None:
         ages_long = np.linspace(21, 100, 80)
