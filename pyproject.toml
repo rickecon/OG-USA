@@ -45,6 +45,7 @@ dependencies = [
     "statsmodels",
     "linearmodels",
     "ogcore>=0.14.6",
+    "tabulate",
 ]
 
 [project.urls]
