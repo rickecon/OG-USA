@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.1] - 2026-07-24 12:00:00
+
+### Fixed
+
+- Updates parameters and `income.py` to work with neew OG-Core demographics parameter object arrays.
+
 ## [0.4.0] - 2026-06-15 12:00:00
 
 ### Changed
