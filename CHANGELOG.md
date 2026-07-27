@@ -216,6 +216,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Any earlier versions of OG-USA can be found in the [`OG-Core`](https://github.com/PSLmodels/OG-Core) repository [release history](https://github.com/PSLmodels/OG-Core/releases) from [v.0.6.4](https://github.com/PSLmodels/OG-Core/releases/tag/v0.6.4) (Jul. 20, 2021) or earlier.
 
 
+[0.5.0]: https://github.com/PSLmodels/OG-USA/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/PSLmodels/OG-USA/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/PSLmodels/OG-USA/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/PSLmodels/OG-USA/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/PSLmodels/OG-USA/compare/v0.3.0...v0.3.1
