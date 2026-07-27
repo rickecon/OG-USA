@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ogusa"
-version = "0.4.0"
+version = "0.5.0"
 authors = [
     {name = "Jason DeBacker and Richard W. Evans"},
 ]
@@ -44,7 +44,8 @@ dependencies = [
     "openpyxl>=3.1.2",
     "statsmodels",
     "linearmodels",
-    "ogcore>=0.14.6",
+    "ogcore>=0.18.0",
+    "tabulate",
 ]
 
 [project.urls]
@@ -83,6 +84,16 @@ ogusa = [
     "psid_lifetime_income.csv.gz",
     "data/CPS/*.csv",
     "data/SCF/*.csv",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "coverage",
+    "pytest>=6.0",
+    "pytest-cov",
+    "pytest-xdist",
+    "ruff",
+    "linecheck",
 ]
 
 [tool.ruff]
