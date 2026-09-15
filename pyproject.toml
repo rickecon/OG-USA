@@ -55,11 +55,12 @@ Homepage = "https://github.com/PSLmodels/OG-USA/"
 [project.optional-dependencies]
 dev = [
     "coverage",
-    "pytest>=6.0",
+    "pytest>=9.1",
     "pytest-cov",
     "pytest-xdist",
     "ruff",
     "linecheck",
+    "ipykernel"
 ]
 docs = [
     "ipykernel",
@@ -84,16 +85,6 @@ ogusa = [
     "psid_lifetime_income.csv.gz",
     "data/CPS/*.csv",
     "data/SCF/*.csv",
-]
-
-[tool.uv]
-dev-dependencies = [
-    "coverage",
-    "pytest>=6.0",
-    "pytest-cov",
-    "pytest-xdist",
-    "ruff",
-    "linecheck",
 ]
 
 [tool.ruff]

@@ -8,19 +8,19 @@ SCF_DATA_DIR = os.path.abspath(os.path.join(CUR_PATH, "data", "SCF"))
 
 
 def get_wealth_data(
-    scf_yrs_list=[2019, 2016, 2013, 2010, 2007],
+    scf_yrs_list=[2022, 2019, 2016, 2013, 2010, 2007],
     web=False,
     directory=None,
     include_age=False,
 ):
     """
-    Reads wealth data from the 2007, 2010, 2013, 2016, and 2019 Survey of
+    Reads wealth data from the 2007, 2010, 2013, 2016, 2019, and 2022 Survey of
     Consumer Finances (SCF) files.
 
     Args:
         scf_yrs_list (list): list of SCF years to import. Currently the
             largest set of years that will work is
-            [2019, 2016, 2013, 2010, 2007]
+            [2022, 2019, 2016, 2013, 2010, 2007]
         web (Boolean): =True if function retrieves data from internet.
             Defaults to False and uses local trimmed CSVs in ogusa/data/SCF.
         directory (string or None): local directory location if data are
@@ -37,15 +37,17 @@ def get_wealth_data(
     # values from monthly FRED Consumer Price Index for All Urban Consumers:
     # All Items Less Food and Energy in U.S. City Average (CPILFESL,
     # https://fred.stlouisfed.org/series/CPILFESL). Base year is 1982-1984=100.
-    # Values are [263.209, 247.585, 233.810, 221.336, 210.725].
+    # Values are taken from the July numbers in 2022, 2019, 2016, 2013, 2010,
+    # and 2007 [295.088, 263.280, 247.829, 233.880, 221.363, 210.773].
     # We then reset the base year to 2019 by dividing each annual average by
     # the 2019 annual average and multiply by 100. Base year is 2019=100
     cpi_dict = {
-        "cpi2019": 100.000,
-        "cpi2016": 94.06403464,
-        "cpi2013": 88.83067929,
-        "cpi2010": 84.09125952,
-        "cpi2007": 80.05995867,
+        "cpi2022": 100.000,
+        "cpi2019": 89.2208426,
+        "cpi2016": 83.98477742,
+        "cpi2013": 79.25771295,
+        "cpi2010": 75.01592745,
+        "cpi2007": 71.42716749,
     }
     if web:
         # Throw an error if the machine is not connected to the internet
