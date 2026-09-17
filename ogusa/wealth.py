@@ -135,9 +135,9 @@ def merge_infladj_mult_scf_years(df_scf_list, scf_years):
     for year, df_scf in zip(scf_years, df_scf_list):
         df_scf["year"] = year
         # df_cpi["date"] holds "%Y-%m-%d" strings, so match July directly
-        cpi_scf_year = df_cpi.loc[
-            df_cpi["date"] == f"{year}-07-01", "CPILFESL"
-        ].item()
+        cpi_scf_year = (
+            df_cpi.loc[df_cpi["date"] == f"{year}-07-01", "CPILFESL"]
+        ).item()
         print("cpi_scf_year =", cpi_scf_year)
         df_scf["D_d_infladj"] = df_scf["D_d"] * (cpi_cur / cpi_scf_year)
         df_scf["K_d_infladj"] = df_scf["K_d"] * (cpi_cur / cpi_scf_year)
@@ -181,7 +181,10 @@ def wealth_distributions(
     # dist_2d rows are age bins and columns are lifetime income groups, so
     # summing across the columns (axis=1) marginalizes to age bins and
     # summing down the rows (axis=0) marginalizes to lifetime income groups.
-    return dist_2d, dist_2d.sum(axis=1), dist_2d.sum(axis=0)
+    dist_sj = dist_2d
+    dist_s = dist_2d.sum(axis=1)
+    dist_j = dist_2d.sum(axis=0)
+    return dist_sj, dist_s, dist_j
 
 
 def get_wealth_data(
@@ -189,6 +192,7 @@ def get_wealth_data(
     web=False,
     directory=None,
     include_age=False,
+    scf_data_dir=scf_data_dir
 ):
     """
     Reads wealth data from the 2007, 2010, 2013, 2016, 2019, and 2022 Survey of
@@ -251,7 +255,7 @@ def get_wealth_data(
     elif not web:
         file_paths = []
         if directory is None:
-            directory = SCF_DATA_DIR
+            directory = scf_data_dir
         full_directory = os.path.expanduser(directory)
         filename_list = []
         for yr in scf_yrs_list:
