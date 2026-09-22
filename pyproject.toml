@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ogusa"
-version = "0.5.0"
+version = "0.5.1"
 authors = [
     {name = "Jason DeBacker and Richard W. Evans"},
 ]
@@ -84,7 +84,7 @@ ogusa = [
     "ogusa_default_parameters_2sector.json",
     "psid_lifetime_income.csv.gz",
     "data/CPS/*.csv",
-    "data/SCF/*.csv",
+    "data/SCF/*.pkl",
 ]
 
 [tool.ruff]
