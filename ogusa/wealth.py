@@ -2,10 +2,16 @@ import os
 import datetime
 import io
 import zipfile
+import pickle
 import numpy as np
 import pandas as pd
 import urllib.error
 import urllib.request
+from matplotlib import pyplot as plt
+from matplotlib import cm, colors
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.ndimage import gaussian_filter
+from scipy.stats import gaussian_kde
 from ogcore import utils as ogcore_utils
 from ogusa import utils as ogusa_utils
 
@@ -152,210 +158,272 @@ def wealth_distributions(
     df, min_age=21, max_age=100, age_bin_width=10, lambdas=scf_default_lambdas
 ):
     """
-    Return the share of total wealth held by households by  age bin
-    of the head of household and lifetime income group j as an
-    (age bins x J) DataFrame, an (age bins,) Series by age bin, and a
-    (J,) Series by lifetime income group.
+    Return the share of total wealth held by households by age bin of the
+    head of household and lifetime income group j as an (age bins x J)
+    DataFrame, an (age bins,) Series by age bin, and a (J,) Series by
+    lifetime income group. Return the same three distributions of the
+    weighted population of households, the Gini coefficient of wealth, and
+    the variance of the log of positive wealth.
     """
     age_bin_starts = range(min_age, max_age + 1, age_bin_width)
     age_labels = [f"{a}-{a + age_bin_width - 1}" for a in age_bin_starts]
     age_bin = (df["age"] - min_age) // age_bin_width
-    w_wealth = df["wgt"] * df["wealth_infladj"]
-    # Group the Series by the two key Series directly. Adding the keys as
-    # columns instead would copy the (already fragmented) input DataFrame.
-    cell_wealth = (
-        w_wealth.groupby([age_bin, df["j"]]).sum().unstack(fill_value=0.0)
-    )
-    dist_2d = (
-        cell_wealth.reindex(
-            index=range(len(age_labels)),
-            columns=range(len(lambdas)),
-            fill_value=0.0,
+
+    def joint_dist(values):
+        """
+        Return the (age bins x J) DataFrame of each cell's share of the sum
+        of values.
+        """
+        # Group the Series by the two key Series directly. Adding the keys
+        # as columns instead would copy the (already fragmented) input
+        # DataFrame.
+        cell_sum = (
+            values.groupby([age_bin, df["j"]]).sum().unstack(fill_value=0.0)
         )
-        / w_wealth.sum()
+        dist_2d = (
+            cell_sum.reindex(
+                index=range(len(age_labels)),
+                columns=range(len(lambdas)),
+                fill_value=0.0,
+            )
+            / values.sum()
+        )
+        dist_2d.index = pd.Index(age_labels, name="age")
+        dist_2d.columns = pd.Index(
+            [f"j={j}" for j in dist_2d.columns], name="lifetime income group"
+        )
+        return dist_2d
+
+    # Distributions are (age bins x J) with rows as age bins and columns as
+    # lifetime income groups, so summing across the columns (axis=1)
+    # marginalizes to age bins and summing down the rows (axis=0)
+    # marginalizes to lifetime income groups.
+    # Wealth distributions
+    w_dist_sj = joint_dist(df["wgt"] * df["wealth_infladj"])
+    w_dist_s = w_dist_sj.sum(axis=1)
+    w_dist_j = w_dist_sj.sum(axis=0)
+    # Population distributions (p_dist_j should be close to lambdas)
+    p_dist_sj = joint_dist(df["wgt"])
+    p_dist_s = p_dist_sj.sum(axis=1)
+    p_dist_j = p_dist_sj.sum(axis=0)
+
+    # Compute gini coeff
+    df_sorted = df.sort_values(by="wealth_infladj", ascending=True)
+    wgt = df_sorted["wgt"].to_numpy()
+    # Set negative wealth to zero
+    wealth = df_sorted["wealth_infladj"].clip(lower=0.0).to_numpy()
+    weighted_wealth =  wgt * wealth
+    # Create vector of cummulative percent of population
+    p = np.concatenate(([0.0], wgt.cumsum() / wgt.sum()))
+    # Create vector of cumulative percent of wealth for each cumulative sum of
+    # population, starting at 0
+    nu = np.concatenate(
+        ([0.0], weighted_wealth.cumsum() / weighted_wealth.sum())
     )
-    dist_2d.index = pd.Index(age_labels, name="age")
-    dist_2d.columns = pd.Index(
-        [f"j={j}" for j in dist_2d.columns], name="lifetime income group"
+    gini_coef = (nu[1:] * p[:-1]).sum() - (nu[:-1] * p[1:]).sum()
+
+    # Compute the variance of the log of wealth
+    pos = df["wealth_infladj"] > 0.0
+    ln_w = np.log(df.loc[pos, "wealth_infladj"])
+    wgt_pos = df.loc[pos, "wgt"]
+    mean_ln_w = (wgt_pos * ln_w).sum() / wgt_pos.sum()
+    var_ln_w = (wgt_pos * (ln_w - mean_ln_w) ** 2).sum() / wgt_pos.sum()
+
+    return (
+        w_dist_sj, w_dist_s, w_dist_j, p_dist_sj, p_dist_s, p_dist_j,
+        gini_coef, var_ln_w
     )
-    # dist_2d rows are age bins and columns are lifetime income groups, so
-    # summing across the columns (axis=1) marginalizes to age bins and
-    # summing down the rows (axis=0) marginalizes to lifetime income groups.
-    dist_sj = dist_2d
-    dist_s = dist_2d.sum(axis=1)
-    dist_j = dist_2d.sum(axis=0)
-    return dist_sj, dist_s, dist_j
 
 
-def get_wealth_data(
-    scf_yrs_list=[2022, 2019, 2016, 2013, 2010, 2007],
-    web=False,
-    directory=None,
-    include_age=False,
-    scf_data_dir=scf_data_dir
+def smooth_joint_dist(
+    w_dist_sj, p_dist_sj, s_min, lambdas, sigma_s=3.0, sigma_j=0.5, var_str="",
+    save_mat=False, plot=False, plot_type="bar", plot_title=True,
+    save_plot=False
 ):
     """
-    Reads wealth data from the 2007, 2010, 2013, 2016, 2019, and 2022 Survey of
-    Consumer Finances (SCF) files.
+    Smooth an (S, J) joint wealth distribution by smoothing wealth per
+    household across neighboring (s, j) cells with a Gaussian kernel, using a
+    separate bandwidth for each axis, and rescale it to sum to one.
 
     Args:
-        scf_yrs_list (list): list of SCF years to import. Currently the
-            largest set of years that will work is
-            [2022, 2019, 2016, 2013, 2010, 2007]
-        web (Boolean): =True if function retrieves data from internet.
-            Defaults to False and uses local trimmed CSVs in ogusa/data/SCF.
-        directory (string or None): local directory location if data are
-            stored on local drive, not use internet (web=False)
-        include_age (Boolean): =True if function keeps the respondent age
-            from the SCF summary extract.
-
+        w_dist_sj (array_like S x J): share of total wealth in each cell
+        p_dist_sj (array_like S x J): share of total population in each cell
+        s_min (int): Minimum or starting age in the age distribution of S
+        lambdas (vector, len-J): percentiles associated with each lifetime
+                    income group
+        sigma_s (scalar >= 0): kernel standard deviation across ages, in
+            number of age bins
+        sigma_j (scalar >= 0): kernel standard deviation across lifetime
+            income groups, in number of groups
+        var_str (string): String of variable name--either "",
+            "wealth $b_{j,s}$", or "bequests $bq_{j,s}$"
+        save_mat (bool): Save the proportion matrix if =True
+        plot (bool): Plot the KDE smoothed distributions if =True.
+        plot_type (string): Plot type: either "bar" or "surface"
+        plot_title (bool): Include plot title if =True
+        save_plot (bool): Save the plot if =True
 
     Returns:
-        df_scf (Pandas DataFrame): pooled cross-sectional data from SCFs
-
+        w_dist_sj_smooth_scaled (array S x J): smoothed share of total wealth
+            in each cell, summing to one
     """
-    # Hard code cpi list for given years. Index values are annual average index
-    # values from monthly FRED Consumer Price Index for All Urban Consumers:
-    # All Items Less Food and Energy in U.S. City Average (CPILFESL,
-    # https://fred.stlouisfed.org/series/CPILFESL). Base year is 1982-1984=100.
-    # Values are taken from the July numbers in 2022, 2019, 2016, 2013, 2010,
-    # and 2007 [295.088, 263.280, 247.829, 233.880, 221.363, 210.773].
-    # We then reset the base year to 2019 by dividing each annual average by
-    # the 2019 annual average and multiply by 100. Base year is 2019=100
-    cpi_dict = {
-        "cpi2022": 100.000,
-        "cpi2019": 89.2208426,
-        "cpi2016": 83.98477742,
-        "cpi2013": 79.25771295,
-        "cpi2010": 75.01592745,
-        "cpi2007": 71.42716749,
-    }
-    if web:
-        # Throw an error if the machine is not connected to the internet
-        if ogcore_utils.not_connected():
-            err_msg = (
-                "SCF DATA ERROR: The local machine is not "
-                + "connected to the internet and web=True was "
-                + "selected."
-            )
-            raise RuntimeError(err_msg)
-
-        file_urls = []
-        for yr in scf_yrs_list:
-            zipfilename = (
-                "https://www.federalreserve.gov/econres/"
-                + "files/scfp"
-                + str(yr)
-                + "s.zip"
-            )
-            file_urls.append(zipfilename)
-
-        file_paths = ogcore_utils.fetch_files_from_web(file_urls)
-
-    elif not web:
-        file_paths = []
-        if directory is None:
-            directory = scf_data_dir
-        full_directory = os.path.expanduser(directory)
-        filename_list = []
-        for yr in scf_yrs_list:
-            csv_filename = "scf_wealth_" + str(yr) + ".csv"
-            dta_filename = "rscfp" + str(yr) + ".dta"
-            if os.path.isfile(os.path.join(full_directory, csv_filename)):
-                filename = csv_filename
-            else:
-                filename = dta_filename
-            filename_list.append(filename)
-
-        for name in filename_list:
-            file_paths.append(os.path.join(full_directory, name))
-        # Check to make sure the necessary files are present in the
-        # local directory
-        err_msg = (
-            "hrs_by_age() ERROR: The file %s was not found in "
-            + "the directory %s"
+    w_dist = np.asarray(w_dist_sj, dtype=float)
+    p_dist = np.asarray(p_dist_sj, dtype=float)
+    kernel = {"sigma": (sigma_s, sigma_j), "mode": "nearest"}
+    S, J = w_dist.shape
+    # Wealth per household relative to the average household (1 = average),
+    # averaged over neighboring cells weighted by their population. Smoothing
+    # the numerator and denominator separately avoids dividing by the small
+    # or zero population of sparse cells.
+    rel_wealth = gaussian_filter(w_dist, **kernel) / gaussian_filter(
+        p_dist, **kernel
+    )
+    # Wealth share of each cell = population share x relative wealth
+    w_dist_sj_smooth = p_dist * rel_wealth
+    w_dist_sj_smooth_scaled = w_dist_sj_smooth / w_dist_sj_smooth.sum()
+    if save_mat:
+        save_dir = os.path.join(CUR_DIR, "data", "SCF")
+        if var_str == "wealth":
+            orig_path = os.path.join(save_dir, "w_dist_sj_orig_dict.pkl")
+            smooth_path = os.path.join(save_dir, "w_dist_sj_smooth_dict.pkl")
+        elif var_str == "bequests":
+            orig_path = os.path.join(save_dir, "bq_dist_sj_orig_dict.pkl")
+            smooth_path = os.path.join(save_dir, "bq_dist_sj_smooth_dict.pkl")
+        w_dist_sj_dict = {
+            "w_dist_sj": w_dist_sj,
+            "p_dist_sj": p_dist_sj
+        }
+        w_dist_sj_smooth_scaled_dict = {
+            "w_dist_sj_smooth_scaled": w_dist_sj_smooth_scaled,
+            "p_dist_sj": p_dist_sj
+        }
+        pickle.dump(w_dist_sj_dict, open(orig_path, "wb"))
+        pickle.dump(w_dist_sj_smooth_scaled_dict, open(smooth_path, "wb"))
+    if plot:
+        ages = np.arange(s_min, s_min + S)
+        # Color gradation: Blues trimmed to its 0.25-1.0 range
+        blues_trunc = colors.ListedColormap(
+            cm.Blues(np.linspace(0.25, 1.0, 256))
         )
-        for path in file_paths:
-            if not os.path.isfile(path):
-                raise ValueError(err_msg % (path, full_directory))
-
-    # read in raw SCF data to calculate moments
-    scf_dict = {}
-    columns = ["networth", "wgt"]
-    if include_age:
-        columns.append("age")
-    for filename, year in zip(file_paths, scf_yrs_list):
-        if filename.endswith(".csv"):
-            csv_columns = ["networth", "networth_infadj", "wgt"]
-            if include_age:
-                csv_columns.append("age")
-            df_yr = pd.read_csv(filename, usecols=csv_columns)
-        else:
-            df_yr = pd.read_stata(filename, columns=columns)
-            # Add inflation adjusted net worth
-            cpi = cpi_dict["cpi" + str(year)]
-            df_yr["networth_infadj"] = df_yr["networth"] * (100.0 / cpi)
-        scf_dict[str(year)] = df_yr
-
-    df_scf = scf_dict[str(scf_yrs_list[0])]
-    num_yrs = len(scf_yrs_list)
-    if num_yrs >= 2:
-        for year in scf_yrs_list[1:]:
-            df_scf = pd.concat(
-                [df_scf, scf_dict[str(year)]], ignore_index=True
+        if var_str=="":
+            latex_title_str = ""
+            latex_axis_str = ""
+        elif var_str == "wealth":
+            latex_title_str = r"$b_{j,s,1}$"
+            latex_axis_str = r"$B_1$"
+        elif var_str == "bequests":
+            latex_title_str = r"$bq_{j,s,1}$"
+            latex_axis_str = r"$BQ_1$"
+        fig1 = plt.figure(figsize=(10, 7))
+        ax1 = fig1.add_subplot(projection="3d")
+        if plot_type == "bar":
+            # One bar per (age, j) cell: x = age, y = j, height = wealth share
+            A, Jg = np.meshgrid(ages, np.arange(J), indexing="ij")
+            x = A.ravel() - 0.4
+            y = Jg.ravel() - 0.4
+            dz = w_dist_sj_smooth_scaled.ravel()
+            # Color bars by height with a single-hue sequential colormap
+            norm = colors.Normalize(vmin=min(dz.min(), 0.0), vmax=dz.max())
+            bar_colors = cm.Blues(0.25 + 0.75 * norm(dz))
+            ax1.bar3d(
+                x, y, np.zeros_like(dz), 0.8, 0.8, dz, color=bar_colors,
+                shade=True, linewidth=0
             )
+        elif plot_type=="surface":
+            # Grid of (age, j) points, height = wealth share
+            A, Jg = np.meshgrid(ages, np.arange(J), indexing="ij")  # (80, 7)
+            Z = w_dist_sj_smooth_scaled
+            # Same gradation as the bar chart: Blues trimmed to range 0.25-1.0
+            norm = colors.Normalize(vmin=min(Z.min(), 0.0), vmax=Z.max())
+            surf = ax1.plot_surface(
+                A, Jg, Z,
+                cmap=blues_trunc, norm=norm,
+                rstride=1, cstride=1,  # use every data point (no downsampling)
+                linewidth=0, antialiased=False,
+            )
+        # Label j axis with the lifetime income percentile ranges
+        cum = np.concatenate(([0], np.cumsum(lambdas))) * 100
+        ax1.set_yticks(np.arange(J))
+        ax1.set_yticklabels(
+            [f"{cum[k]:.0f}-{cum[k + 1]:.0f}%" for k in range(J)]
+        )
+        ax1.set_xlabel(r"Age $s$")
+        ax1.set_ylabel(r"Lifetime income group $j$")
+        ax1.set_zlabel("Percent of total " + var_str + " " + latex_axis_str)
+        ax1.view_init(elev=15, azim=-65)
+        plt.tight_layout()
+        if plot_title:
+            plot_title1_str = (
+                "Smoothed distribution of initial household " + var_str + " " +
+                latex_title_str
+            )
+            ax1.set_title(plot_title1_str)
+        if save_plot:
+            if var_str == "wealth":
+                smooth_save_path = os.path.join(
+                    CUR_DIR, "data", "SCF", "w_dist_sj_smooth.png"
+                )
+            elif var_str == "bequests":
+                smooth_save_path = os.path.join(
+                    CUR_DIR, "data", "SCF", "bq_dist_sj_smooth.png"
+                )
+            plt.savefig(smooth_save_path, dpi=300)
 
-    return df_scf
+        plt.show()
+        plt.close()
 
+        fig2 = plt.figure(figsize=(10, 7))
+        ax2 = fig2.add_subplot(projection="3d")
+        if plot_type == "bar":
+            # One bar per (age, j) cell: x = age, y = j, height = wealth share
+            dz2 = w_dist_sj.ravel()
+            # Color bars by height with a single-hue sequential colormap
+            norm2 = colors.Normalize(vmin=min(dz2.min(), 0.0), vmax=dz2.max())
+            bar_colors = cm.Blues(0.25 + 0.75 * norm2(dz2))
+            ax2.bar3d(
+                x, y, np.zeros_like(dz2), 0.8, 0.8, dz2, color=bar_colors,
+                shade=True, linewidth=0
+            )
+        elif plot_type=="surface":
+            # Grid of (age, j) points, height = wealth share
+            Z2 = w_dist_sj
+            # Same gradation as the bar chart: Blues trimmed to range 0.25-1.0
+            norm2 = colors.Normalize(vmin=min(Z2.min(), 0.0), vmax=Z2.max())
+            surf = ax2.plot_surface(
+                A, Jg, Z2,
+                cmap=blues_trunc, norm=norm2,
+                rstride=1, cstride=1,  # use every data point (no downsampling)
+                linewidth=0, antialiased=False,
+            )
+        # Label j axis with the lifetime income percentile ranges
+        cum = np.concatenate(([0], np.cumsum(lambdas))) * 100
+        ax2.set_yticks(np.arange(J))
+        ax2.set_yticklabels(
+            [f"{cum[k]:.0f}-{cum[k + 1]:.0f}%" for k in range(J)]
+        )
+        ax2.set_xlabel(r"Age $s$")
+        ax2.set_ylabel(r"Lifetime income group $j$")
+        ax2.set_zlabel("Percent of total " + var_str + " " + latex_axis_str)
+        ax2.view_init(elev=15, azim=-65)
+        plt.tight_layout()
+        if plot_title:
+            plot_title2_str = (
+                "Original distribution of initial household " + var_str + " " +
+                latex_title_str
+            )
+            ax2.set_title(plot_title2_str)
+        if save_plot:
+            if var_str == "wealth":
+                orig_save_path = os.path.join(
+                    CUR_DIR, "data", "SCF", "w_dist_sj_orig.png"
+                )
+            elif var_str == "bequests":
+                orig_save_path = os.path.join(
+                    CUR_DIR, "data", "SCF", "bq_dist_sj_orig.png"
+                )
+            plt.savefig(orig_save_path, dpi=300)
 
-def compute_wealth_moments(scf, bin_weights):
-    """
-    This function computes moments (wealth shares, Gini coefficient,
-    var[ln(wealth)]) from the distribution of wealth using SCF data.
+        plt.show()
+        plt.close()
 
-    Args:
-        scf (Pandas DataFrame): pooled cross-sectional data from SCFs
-        bin_weights (Numpy Array) = ability weights
-
-    Returns:
-        wealth_moments (Numpy Array): array of wealth moments
-
-    """
-    # calculate percentile shares (percentiles based on lambdas input)
-    scf.sort_values(by="networth_infadj", ascending=True, inplace=True)
-    scf["weight_networth"] = scf["wgt"] * scf["networth_infadj"]
-    total_weight_wealth = scf.weight_networth.sum()
-    cumsum = scf.wgt.cumsum()
-    J = bin_weights.shape[0]
-    wealth = np.zeros((J,))
-    cum_weights = bin_weights.cumsum()
-    for i in range(J):
-        # Get number of individuals at top of percentile bin
-        cutoff = scf.wgt.sum() * cum_weights[i]
-        wealth[i] = (
-            scf.weight_networth[cumsum < cutoff].sum()
-        ) / total_weight_wealth
-
-    wealth_share = np.zeros(J)
-    wealth_share[0] = wealth[0]
-    wealth_share[1:] = wealth[1:] - wealth[0:-1]
-
-    # compute gini coeff
-    scf.sort_values(by="networth_infadj", ascending=True, inplace=True)
-    p = (scf.wgt.cumsum() / scf.wgt.sum()).values
-    nu = ((scf.wgt * scf.networth_infadj).cumsum()).values
-    nu = nu / nu[-1]
-    gini_coeff = (nu[1:] * p[:-1]).sum() - (nu[:-1] * p[1:]).sum()
-
-    # compute variance in logs
-    df = scf.drop(scf[scf["networth_infadj"] <= 0.0].index)
-    df["ln_networth"] = np.log(df["networth_infadj"])
-    df.sort_values(by="ln_networth", ascending=True, inplace=True)
-    weight_mean = ((df.ln_networth * df.wgt).sum()) / (df.wgt.sum())
-    var_ln_wealth = (
-        (df.wgt * ((df.ln_networth - weight_mean) ** 2)).sum()
-    ) * (1.0 / (df.wgt.sum() - 1))
-
-    wealth_moments = np.append([wealth_share], [gini_coeff, var_ln_wealth])
-
-    return wealth_moments
+    return w_dist_sj_smooth_scaled
